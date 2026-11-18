@@ -35,6 +35,7 @@ versioni in attesa sono provvisori e vengono **sempre ricalcolati** subito prima
   ```
   .rocketsync/local/
   *.tmp
+  *.ork-bak
   ~$*
   *.swp
   *.bak
@@ -118,6 +119,15 @@ Rocket-Sync-Client: 0.1.0
    intervalli; dopo 30 s resta segnato "illeggibile" e non può entrare in una versione.
 4. Limiti di dimensione: avviso oltre **50 MB**, blocco oltre **100 MB** (limite GitHub).
 5. Gli eventi generati da Rocket Sync stesso (aggiornamenti, ripristini) vengono ignorati.
+6. **Come salva OpenRocket** (verificato sul sorgente, vedi [`formato-ork.md`](formato-ork.md)):
+   scrive `ORSave*.tmp` nella stessa cartella, rinomina il `.ork` esistente in `<nome>.ork-bak`,
+   rinomina il temporaneo sul nome finale e cancella il backup. Per un istante il `.ork` **non
+   esiste**: una cancellazione è considerata stabile solo se il file resta assente per tutto il
+   debounce **e** non esistono `<nome>.ork-bak` o `ORSave*.tmp` nella stessa cartella.
+7. Due salvataggi senza modifiche producono byte diversi (metadati dello ZIP). Un file il cui
+   **contenuto** (voci dello ZIP decompresse) è identico a `HEAD` non è una modifica: non compare
+   tra i file modificati, non entra in una versione e non blocca gli aggiornamenti
+   (`FileInspector::content_equal`).
 
 ## 6. Stati di un progetto
 
@@ -303,6 +313,8 @@ pub trait FileInspector: Send + Sync {
     fn validate(&self, path: &str, bytes: &[u8]) -> Result<(), String>;
     /// Righe di changelog in italiano (senza il prefisso "• ").
     fn changelog(&self, path: &str, before: Option<&[u8]>, after: Option<&[u8]>) -> Vec<String>;
+    /// true se i due contenuti sono equivalenti anche se i byte differiscono (default: a == b).
+    fn content_equal(&self, path: &str, a: &[u8], b: &[u8]) -> bool { a == b }
 }
 
 /// Rilevamento dei file aperti in OpenRocket (implementazione Windows reale, mock nei test).
