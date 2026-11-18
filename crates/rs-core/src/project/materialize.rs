@@ -21,8 +21,6 @@ pub(crate) struct WrittenFile {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct MatReport {
     pub written: Vec<WrittenFile>,
-    /// Every path that differs between the two trees (index entries are synchronised for all of them).
-    pub touched: Vec<String>,
 }
 
 struct Planned {
@@ -135,10 +133,8 @@ impl ProjectInner {
             done.push(i);
             written_count += 1;
             if written_count == 1 {
-                if let Err(e) = self.failpoint("materialize.after_first_write") {
-                    // Simulated crash: stop right here without rolling back.
-                    return Err(e);
-                }
+                // Simulated crash (tests): stop right here without rolling back.
+                self.failpoint("materialize.after_first_write")?;
             }
         }
         if let Some(err) = failure {
@@ -176,7 +172,8 @@ impl ProjectInner {
             let mut t = self.tracker.lock().unwrap_or_else(|p| p.into_inner());
             for p in &plan {
                 if p.write {
-                    let meta = file_meta(&self.folder.join(&p.path)).map(|(size, mtime)| Meta { size, mtime });
+                    let meta = file_meta(&self.folder.join(&p.path))
+                        .map(|(size, mtime)| Meta { size, mtime });
                     t.on_self_write(&p.path, meta, now);
                 }
             }
@@ -191,13 +188,16 @@ impl ProjectInner {
                     new_blob: p.target.as_ref().map(|t| t.1.clone()),
                 })
                 .collect(),
-            touched: plan.iter().map(|p| p.path.clone()).collect(),
         };
         Ok(report)
     }
 
     /// Paths that [`ProjectInner::materialize`] would actually have to write (disk differs from the target).
-    pub(crate) fn paths_needing_write(&self, from_tree: &str, to_tree: &str) -> Result<Vec<String>> {
+    pub(crate) fn paths_needing_write(
+        &self,
+        from_tree: &str,
+        to_tree: &str,
+    ) -> Result<Vec<String>> {
         let diff: Vec<_> = self
             .repo
             .diff_tree(from_tree, to_tree, false)?
@@ -222,7 +222,12 @@ impl ProjectInner {
     }
 
     /// Registers a stale-editor surveillance for every written file that OpenRocket may have open.
-    pub(crate) fn arm_guards(&self, report: &MatReport, old_commit: &str, new_commit: &str) -> Result<()> {
+    pub(crate) fn arm_guards(
+        &self,
+        report: &MatReport,
+        old_commit: &str,
+        new_commit: &str,
+    ) -> Result<()> {
         if report.written.is_empty() {
             return Ok(());
         }

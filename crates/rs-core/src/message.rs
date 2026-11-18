@@ -90,7 +90,10 @@ impl VersionMessage {
             None => "pending".to_string(),
         };
         out.push_str(&format!("Rocket-Sync-Version: {version}\n"));
-        out.push_str(&format!("Rocket-Sync-Kind: {}\n", Self::kind_str(self.kind)));
+        out.push_str(&format!(
+            "Rocket-Sync-Kind: {}\n",
+            Self::kind_str(self.kind)
+        ));
         out.push_str(&format!("Rocket-Sync-Client: {}\n", one_line(&self.client)));
         if let Some(n) = self.restored_from {
             out.push_str(&format!("Rocket-Sync-Restored-From: {n}\n"));
@@ -195,13 +198,17 @@ fn one_line(s: &str) -> String {
 }
 
 fn enc(s: &str) -> String {
-    s.replace('%', "%25").replace(';', "%3B").replace('=', "%3D")
+    s.replace('%', "%25")
+        .replace(';', "%3B")
+        .replace('=', "%3D")
 }
 
 /// Decodes the `Rocket-Sync-Resolution` / `Rocket-Sync-Restored-Paths` encoding.
 #[allow(dead_code)]
 pub(crate) fn dec(s: &str) -> String {
-    s.replace("%3D", "=").replace("%3B", ";").replace("%25", "%")
+    s.replace("%3D", "=")
+        .replace("%3B", ";")
+        .replace("%25", "%")
 }
 
 #[cfg(test)]
@@ -228,11 +235,16 @@ mod tests {
         ];
         let text = m.render();
         assert!(text.starts_with("v13 — Aggiornate pinne\n\nPrima riga"));
-        assert!(text.contains("Rocket-Sync-Version: 13\nRocket-Sync-Kind: publish\nRocket-Sync-Client: 0.1.0\n"));
+        assert!(text.contains(
+            "Rocket-Sync-Version: 13\nRocket-Sync-Kind: publish\nRocket-Sync-Client: 0.1.0\n"
+        ));
         let p = parse_version_message(&text);
         assert_eq!(p.number, Some(13));
         assert_eq!(p.title, "Aggiornate pinne");
-        assert_eq!(p.description.as_deref(), Some("Prima riga\n\nSeconda parte"));
+        assert_eq!(
+            p.description.as_deref(),
+            Some("Prima riga\n\nSeconda parte")
+        );
         assert_eq!(p.changelog, m.changelog);
         assert_eq!(p.kind, VersionKind::Publish);
     }
@@ -252,7 +264,8 @@ mod tests {
         assert_eq!(p.conflict_id.as_deref(), Some("20260101-abcdef"));
         assert_eq!(dec("a%3Bb%3Dc"), "a;b=c");
 
-        let mut r = VersionMessage::new(VersionKind::Restore, "Ripristinata la versione 2", "0.1.0");
+        let mut r =
+            VersionMessage::new(VersionKind::Restore, "Ripristinata la versione 2", "0.1.0");
         r.restored_from = Some(2);
         let p = parse_version_message(&r.render());
         assert_eq!(p.restored_from, Some(2));

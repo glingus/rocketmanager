@@ -85,9 +85,9 @@ mod util;
 mod watcher;
 
 pub use config::{EngineConfig, GitSettings, Identity, Timing};
-pub use editor::{interpret_windows, parse_openrocket_title, OpenRocketTitle, WindowInfo};
 #[cfg(windows)]
-pub use editor::WindowsEditorDetector;
+pub use editor::{enumerate_windows, WindowsEditorDetector};
+pub use editor::{interpret_windows, parse_openrocket_title, OpenRocketTitle, WindowInfo};
 pub use engine::Engine;
 pub use error::{AppError, CoreError, ErrorCode, Result};
 pub use events::EngineEvent;

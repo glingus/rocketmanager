@@ -83,7 +83,9 @@ impl Failpoints {
         };
         match action {
             None => Ok(()),
-            Some(Action::Crash) | Some(Action::CrashOnce) => Err(CoreError::InjectedCrash(name.to_string())),
+            Some(Action::Crash) | Some(Action::CrashOnce) => {
+                Err(CoreError::InjectedCrash(name.to_string()))
+            }
             Some(Action::Callback(f)) => {
                 f();
                 Ok(())
@@ -106,7 +108,12 @@ mod tests {
         assert!(fp.hit("x").is_ok());
         let n = Arc::new(AtomicUsize::new(0));
         let n2 = n.clone();
-        fp.set("y", Action::Callback(Arc::new(move || { n2.fetch_add(1, Ordering::SeqCst); })));
+        fp.set(
+            "y",
+            Action::Callback(Arc::new(move || {
+                n2.fetch_add(1, Ordering::SeqCst);
+            })),
+        );
         fp.hit("y").unwrap();
         fp.hit("y").unwrap();
         assert_eq!(n.load(Ordering::SeqCst), 2);

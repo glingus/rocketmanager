@@ -21,7 +21,9 @@ impl ProjectInner {
     /// Resolves a user-supplied commit id (abbreviations allowed) to a full commit id.
     pub(crate) fn resolve_commit(&self, sha: &str) -> Result<String> {
         if !is_hex_sha(sha) {
-            return Err(CoreError::InvalidArgument(format!("identificativo di versione non valido: {sha}")));
+            return Err(CoreError::InvalidArgument(format!(
+                "identificativo di versione non valido: {sha}"
+            )));
         }
         self.repo
             .resolve(&format!("{sha}^{{commit}}"))?
@@ -35,19 +37,43 @@ impl ProjectInner {
         }
     }
 
-    fn file_changes(&self, from_tree: &str, to_tree: &str) -> Result<(Vec<DiffEntry>, Vec<FileChange>)> {
+    fn file_changes(
+        &self,
+        from_tree: &str,
+        to_tree: &str,
+    ) -> Result<(Vec<DiffEntry>, Vec<FileChange>)> {
         let diff = self.repo.diff_tree(from_tree, to_tree, true)?;
-        let binaries: HashSet<String> = self.repo.binary_paths(from_tree, to_tree)?.into_iter().collect();
+        let binaries: HashSet<String> = self
+            .repo
+            .binary_paths(from_tree, to_tree)?
+            .into_iter()
+            .collect();
         let mut specs: Vec<String> = Vec::new();
         for d in &diff {
-            specs.push(if DiffEntry::is_zero_oid(&d.old_oid) { "0".repeat(40) } else { d.old_oid.clone() });
-            specs.push(if DiffEntry::is_zero_oid(&d.new_oid) { "0".repeat(40) } else { d.new_oid.clone() });
+            specs.push(if DiffEntry::is_zero_oid(&d.old_oid) {
+                "0".repeat(40)
+            } else {
+                d.old_oid.clone()
+            });
+            specs.push(if DiffEntry::is_zero_oid(&d.new_oid) {
+                "0".repeat(40)
+            } else {
+                d.new_oid.clone()
+            });
         }
         let sizes = self.repo.batch_check(&specs)?;
         let mut out = Vec::new();
         for (i, d) in diff.iter().enumerate() {
-            let size_before = if DiffEntry::is_zero_oid(&d.old_oid) { None } else { sizes[2 * i].as_ref().map(|s| s.1) };
-            let size_after = if DiffEntry::is_zero_oid(&d.new_oid) { None } else { sizes[2 * i + 1].as_ref().map(|s| s.1) };
+            let size_before = if DiffEntry::is_zero_oid(&d.old_oid) {
+                None
+            } else {
+                sizes[2 * i].as_ref().map(|s| s.1)
+            };
+            let size_after = if DiffEntry::is_zero_oid(&d.new_oid) {
+                None
+            } else {
+                sizes[2 * i + 1].as_ref().map(|s| s.1)
+            };
             let change = match d.status {
                 'A' => FileChangeKind::Added,
                 'D' => FileChangeKind::Deleted,
@@ -100,7 +126,11 @@ impl ProjectInner {
     }
 
     /// Versions, newest first: pending ones, then the first-parent history of `origin/main`.
-    pub(crate) fn list_versions(&self, limit: Option<usize>, before_sha: Option<&str>) -> Result<Vec<VersionInfo>> {
+    pub(crate) fn list_versions(
+        &self,
+        limit: Option<usize>,
+        before_sha: Option<&str>,
+    ) -> Result<Vec<VersionInfo>> {
         let pending = self.pending_commits()?;
         let published = match self.origin()? {
             Some(o) => self.repo.rev_list(&["--first-parent", &o])?,
@@ -155,9 +185,18 @@ impl ProjectInner {
         let (diff, changes) = self.file_changes(&ft, &tt)?;
         let mut files = Vec::new();
         for (d, c) in diff.iter().zip(changes) {
-            let before = if DiffEntry::is_zero_oid(&d.old_oid) { None } else { Some(self.repo.cat_blob(&d.old_oid)?) };
-            let after = if DiffEntry::is_zero_oid(&d.new_oid) { None } else { Some(self.repo.cat_blob(&d.new_oid)?) };
-            let small = c.size_before.unwrap_or(0).max(c.size_after.unwrap_or(0)) <= MAX_TEXT_DIFF_BYTES;
+            let before = if DiffEntry::is_zero_oid(&d.old_oid) {
+                None
+            } else {
+                Some(self.repo.cat_blob(&d.old_oid)?)
+            };
+            let after = if DiffEntry::is_zero_oid(&d.new_oid) {
+                None
+            } else {
+                Some(self.repo.cat_blob(&d.new_oid)?)
+            };
+            let small =
+                c.size_before.unwrap_or(0).max(c.size_after.unwrap_or(0)) <= MAX_TEXT_DIFF_BYTES;
             let text_diff = if !c.binary && small && c.change != FileChangeKind::Renamed {
                 Some(self.repo.diff_text(&from, &to, &c.path)?)
             } else {
@@ -166,8 +205,12 @@ impl ProjectInner {
             let is_ork = c.path.to_lowercase().ends_with(".ork");
             let note = if c.binary && !is_ork {
                 Some(match (c.size_before, c.size_after) {
-                    (Some(a), Some(b)) if a == b => "File binario: stessa dimensione, contenuto diverso".to_string(),
-                    (Some(a), Some(b)) => format!("File binario: la dimensione è passata da {a} a {b} byte"),
+                    (Some(a), Some(b)) if a == b => {
+                        "File binario: stessa dimensione, contenuto diverso".to_string()
+                    }
+                    (Some(a), Some(b)) => {
+                        format!("File binario: la dimensione è passata da {a} a {b} byte")
+                    }
                     (None, Some(b)) => format!("File binario aggiunto ({b} byte)"),
                     (Some(a), None) => format!("File binario rimosso ({a} byte)"),
                     _ => "File binario".to_string(),
@@ -203,7 +246,12 @@ impl ProjectInner {
 
     /// Writes (a subset of) the files of a tree-ish into `dest_dir`; existing files are never
     /// overwritten (a numeric suffix is added). Returns the absolute paths written.
-    pub(crate) fn export_tree(&self, rev: &str, paths: Option<&[String]>, dest_dir: &Path) -> Result<Vec<String>> {
+    pub(crate) fn export_tree(
+        &self,
+        rev: &str,
+        paths: Option<&[String]>,
+        dest_dir: &Path,
+    ) -> Result<Vec<String>> {
         let entries = self.repo.ls_tree(rev)?;
         let selected: Vec<_> = match paths {
             Some(ps) => {
@@ -214,7 +262,9 @@ impl ProjectInner {
                 for p in ps {
                     match entries.iter().find(|e| &e.path == p) {
                         Some(e) => v.push(e.clone()),
-                        None => return Err(CoreError::NotFound(format!("file {p} nella versione"))),
+                        None => {
+                            return Err(CoreError::NotFound(format!("file {p} nella versione")))
+                        }
                     }
                 }
                 v
@@ -237,7 +287,12 @@ impl ProjectInner {
         Ok(written)
     }
 
-    pub(crate) fn export_version(&self, sha: &str, paths: Option<&[String]>, dest_dir: &Path) -> Result<Vec<String>> {
+    pub(crate) fn export_version(
+        &self,
+        sha: &str,
+        paths: Option<&[String]>,
+        dest_dir: &Path,
+    ) -> Result<Vec<String>> {
         let full = self.resolve_commit(sha)?;
         self.export_tree(&full, paths, dest_dir)
     }

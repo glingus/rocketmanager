@@ -118,7 +118,9 @@ pub(crate) fn classify(stderr_raw: &str, code: Option<i32>) -> GitError {
     let has = |needle: &str| l.contains(needle);
 
     if has("[remote rejected]")
-        && (has("atomic transaction failed") || has("failed to update ref") || has("cannot lock ref"))
+        && (has("atomic transaction failed")
+            || has("failed to update ref")
+            || has("cannot lock ref"))
     {
         // Another client updated the same ref on the server at the same moment: same as a
         // rejected non-fast-forward, the caller refetches and retries.
@@ -204,15 +206,27 @@ mod tests {
     #[test]
     fn classifies_common_failures() {
         assert_eq!(
-            classify("fatal: Unable to create '/r/.git/index.lock': File exists.", Some(128)).kind(),
+            classify(
+                "fatal: Unable to create '/r/.git/index.lock': File exists.",
+                Some(128)
+            )
+            .kind(),
             GitErrorKind::LockHeld
         );
         assert_eq!(
-            classify("fatal: not a git repository (or any of the parent directories): .git", Some(128)).kind(),
+            classify(
+                "fatal: not a git repository (or any of the parent directories): .git",
+                Some(128)
+            )
+            .kind(),
             GitErrorKind::NotARepository
         );
         assert_eq!(
-            classify("fatal: Authentication failed for 'https://github.com/o/r.git/'", Some(128)).kind(),
+            classify(
+                "fatal: Authentication failed for 'https://github.com/o/r.git/'",
+                Some(128)
+            )
+            .kind(),
             GitErrorKind::AuthFailed
         );
         assert_eq!(
@@ -220,11 +234,19 @@ mod tests {
             GitErrorKind::AuthFailed
         );
         assert_eq!(
-            classify(" ! [rejected]        main -> main (fetch first)\nerror: failed to push some refs", Some(1)).kind(),
+            classify(
+                " ! [rejected]        main -> main (fetch first)\nerror: failed to push some refs",
+                Some(1)
+            )
+            .kind(),
             GitErrorKind::NonFastForward
         );
         assert_eq!(
-            classify("fatal: unable to access 'https://x/': Could not resolve host: x", Some(128)).kind(),
+            classify(
+                "fatal: unable to access 'https://x/': Could not resolve host: x",
+                Some(128)
+            )
+            .kind(),
             GitErrorKind::Network
         );
         assert_eq!(
@@ -239,7 +261,10 @@ mod tests {
             classify("fatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main': is at a but expected b", Some(128)).kind(),
             GitErrorKind::Other
         );
-        assert_eq!(classify("fatal: something odd", Some(1)).kind(), GitErrorKind::Other);
+        assert_eq!(
+            classify("fatal: something odd", Some(1)).kind(),
+            GitErrorKind::Other
+        );
     }
 
     #[test]

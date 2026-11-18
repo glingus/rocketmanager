@@ -17,7 +17,11 @@ pub struct ProjectRecord {
 
 /// Publication policy of a project. Serializes as the `PublishPolicy` of the IPC contract.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "mode", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "mode",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum PublishPolicy {
     /// Banner with a "Publish" button; automatic publication after `idle_minutes` without saves.
     Assisted { idle_minutes: u32 },

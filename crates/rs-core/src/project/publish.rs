@@ -49,7 +49,10 @@ impl ProjectInner {
         let selected: Vec<LocalChange> = loop {
             let changes = self.local_changes()?;
             let sel: Vec<LocalChange> = match paths {
-                Some(ps) => changes.into_iter().filter(|c| ps.contains(&c.path)).collect(),
+                Some(ps) => changes
+                    .into_iter()
+                    .filter(|c| ps.contains(&c.path))
+                    .collect(),
                 None => changes,
             };
             let mut unstable: Vec<String> = sel
@@ -59,9 +62,15 @@ impl ProjectInner {
                 .collect();
             if unstable.is_empty() {
                 // Two metadata reads `stability_gap` apart must agree.
-                let before: Vec<_> = sel.iter().map(|c| file_meta(&self.folder.join(&c.path))).collect();
+                let before: Vec<_> = sel
+                    .iter()
+                    .map(|c| file_meta(&self.folder.join(&c.path)))
+                    .collect();
                 std::thread::sleep(timing.stability_gap);
-                let after: Vec<_> = sel.iter().map(|c| file_meta(&self.folder.join(&c.path))).collect();
+                let after: Vec<_> = sel
+                    .iter()
+                    .map(|c| file_meta(&self.folder.join(&c.path)))
+                    .collect();
                 for ((b, a), c) in before.iter().zip(&after).zip(&sel) {
                     if b != a {
                         unstable.push(c.path.clone());
@@ -92,7 +101,10 @@ impl ProjectInner {
                         "publish",
                         "warning",
                         None,
-                        &format!("Il file «{}» supera i 50 MB: GitHub accetta file fino a 100 MB.", c.path),
+                        &format!(
+                            "Il file «{}» supera i 50 MB: GitHub accetta file fino a 100 MB.",
+                            c.path
+                        ),
                     );
                 }
             }
@@ -178,14 +190,18 @@ impl ProjectInner {
                 Some(e) => Some(self.repo.cat_blob(&e.oid)?),
                 None => None,
             };
-            let mut lines = self
-                .shared
-                .config
-                .inspector
-                .changelog(&i.path, before.as_deref(), i.bytes.as_deref());
+            let mut lines = self.shared.config.inspector.changelog(
+                &i.path,
+                before.as_deref(),
+                i.bytes.as_deref(),
+            );
             lines.retain(|l| !l.trim().is_empty());
             if lines.is_empty() {
-                lines = crate::hooks::DefaultInspector.changelog(&i.path, before.as_deref(), i.bytes.as_deref());
+                lines = crate::hooks::DefaultInspector.changelog(
+                    &i.path,
+                    before.as_deref(),
+                    i.bytes.as_deref(),
+                );
             }
             let interpreted = !lines.iter().all(|l| crate::hooks::is_generic_line(l));
             groups.push(ChangelogGroup {
@@ -202,7 +218,7 @@ impl ProjectInner {
         let sig = rs_git::Signature::now(identity.name, identity.email);
         let commit = self.repo.commit_tree(&CommitSpec {
             tree: &tree,
-            parents: &[head.clone()],
+            parents: std::slice::from_ref(&head),
             message: &msg,
             author: &sig,
             committer: &sig,
@@ -263,11 +279,20 @@ impl ProjectInner {
         self.step(op, "snapshot", None)?;
         let head = self.head()?;
         let head_map = self.repo.tree_map(&head)?;
-        let title = match req.title.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+        let title = match req
+            .title
+            .as_deref()
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+        {
             Some(t) => t.to_string(),
             None => default_title(&inputs, |p| head_map.contains_key(p)),
         };
-        let desc = req.description.as_deref().map(str::trim).filter(|d| !d.is_empty());
+        let desc = req
+            .description
+            .as_deref()
+            .map(str::trim)
+            .filter(|d| !d.is_empty());
         let commit = self.commit_local(&inputs, &title, desc, VersionKind::Publish)?;
         self.step(op, "committed", Some(&json!({"commit": commit})))?;
         Ok(())
@@ -280,7 +305,8 @@ impl ProjectInner {
         }
         self.run_op("discard", Busy::Updating, json!({"paths": paths}), |op| {
             let changes = self.local_changes()?;
-            let targets: Vec<&LocalChange> = changes.iter().filter(|c| paths.contains(&c.path)).collect();
+            let targets: Vec<&LocalChange> =
+                changes.iter().filter(|c| paths.contains(&c.path)).collect();
             if targets.is_empty() {
                 return Ok(());
             }
@@ -318,7 +344,8 @@ impl ProjectInner {
                         });
                     }
                 }
-                let meta = file_meta(&abs).map(|(size, mtime)| crate::tracker::Meta { size, mtime });
+                let meta =
+                    file_meta(&abs).map(|(size, mtime)| crate::tracker::Meta { size, mtime });
                 self.tracker
                     .lock()
                     .unwrap_or_else(|p| p.into_inner())

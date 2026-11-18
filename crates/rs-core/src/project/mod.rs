@@ -79,7 +79,6 @@ pub(crate) struct Runtime {
     pub remote_notified: bool,
     pub repo_size: Option<(Instant, u64)>,
     pub retrying: bool,
-    pub last_guard_check: Option<Instant>,
     /// File states already written to the store: (stable, valid, size, mtime_ms).
     pub persisted_states: HashMap<String, (bool, Option<bool>, i64, i64)>,
 }
@@ -87,14 +86,15 @@ pub(crate) struct Runtime {
 /// Journal context of the running top-level operation.
 pub(crate) struct OpCtx {
     pub id: String,
-    pub kind: &'static str,
 }
 
 pub(crate) struct ProjectInner {
     pub shared: Arc<Shared>,
     pub id: String,
     pub folder: PathBuf,
+    #[allow(dead_code)] // kept for diagnostics
     pub remote_url: String,
+    #[allow(dead_code)]
     pub repo_full_name: String,
     pub repo: Repo,
     pub rt: Mutex<Runtime>,
@@ -111,7 +111,16 @@ pub(crate) fn build_ignore(folder: &std::path::Path) -> Gitignore {
     if gi.is_file() {
         let _ = b.add(gi);
     }
-    for p in [".rocketsync/local/", "*.tmp", "~$*", "*.swp", "*.bak", "Thumbs.db", "desktop.ini", ".DS_Store"] {
+    for p in [
+        ".rocketsync/local/",
+        "*.tmp",
+        "~$*",
+        "*.swp",
+        "*.bak",
+        "Thumbs.db",
+        "desktop.ini",
+        ".DS_Store",
+    ] {
         let _ = b.add_line(None, p);
     }
     b.build().unwrap_or_else(|_| Gitignore::empty())
@@ -159,7 +168,6 @@ impl ProjectInner {
                 remote_notified: false,
                 repo_size: None,
                 retrying: false,
-                last_guard_check: None,
                 persisted_states: HashMap::new(),
             }),
             tracker: Mutex::new(tracker),
@@ -277,7 +285,6 @@ impl ProjectInner {
     ) -> Result<T> {
         let op = OpCtx {
             id: format!("op-{}-{}", now_ms(), crate::util::random_id(6)),
-            kind,
         };
         self.rt(|r| r.busy = Some(busy));
         if let Err(e) = self

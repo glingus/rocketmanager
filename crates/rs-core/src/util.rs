@@ -4,7 +4,7 @@ use crate::error::{CoreError, Result};
 use chrono::{DateTime, SecondsFormat, TimeZone, Utc};
 use std::fs;
 use std::io::Write;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Unix milliseconds → ISO 8601 UTC (`2026-01-01T10:00:00Z`).
@@ -29,7 +29,10 @@ pub(crate) fn ms_from_system_time(t: SystemTime) -> i64 {
 /// Any ISO 8601 date with offset → UTC with `Z`. Falls back to the input if it cannot be parsed.
 pub(crate) fn iso_to_utc(s: &str) -> String {
     DateTime::parse_from_rfc3339(s)
-        .map(|d| d.with_timezone(&Utc).to_rfc3339_opts(SecondsFormat::Secs, true))
+        .map(|d| {
+            d.with_timezone(&Utc)
+                .to_rfc3339_opts(SecondsFormat::Secs, true)
+        })
         .unwrap_or_else(|_| s.to_string())
 }
 
@@ -49,10 +52,6 @@ pub(crate) fn random_id(len: usize) -> String {
     (0..len)
         .map(|_| ALPHABET[rng.gen_range(0..ALPHABET.len())] as char)
         .collect()
-}
-
-pub(crate) fn duration_ms(d: Duration) -> i64 {
-    d.as_millis() as i64
 }
 
 /// Validates a path coming from a git tree or from the interface before it is joined to a folder.
@@ -88,12 +87,6 @@ pub(crate) fn validate_rel_path(p: &str) -> Result<()> {
         }
     }
     Ok(())
-}
-
-/// Joins a validated relative path to a root.
-pub(crate) fn join_rel(root: &Path, rel: &str) -> Result<PathBuf> {
-    validate_rel_path(rel)?;
-    Ok(root.join(rel))
 }
 
 /// Splits `dir/name.ext` into (`dir/name`, `.ext`) on the last component only.
@@ -213,12 +206,29 @@ mod tests {
 
     #[test]
     fn path_validation() {
-        for ok in ["a.ork", "dir/sub/a b.ork", ".rocketsync/project.json", "x/.gitignore"] {
+        for ok in [
+            "a.ork",
+            "dir/sub/a b.ork",
+            ".rocketsync/project.json",
+            "x/.gitignore",
+        ] {
             assert!(validate_rel_path(ok).is_ok(), "{ok}");
         }
         for bad in [
-            "", "/abs", "../x", "a/../b", "a//b", "C:/x", "a\\b", ".git/config", "a/.git/hooks/x", "a/.GIT/x",
-            ".git./x", "a/./b", "x\0y", "a/",
+            "",
+            "/abs",
+            "../x",
+            "a/../b",
+            "a//b",
+            "C:/x",
+            "a\\b",
+            ".git/config",
+            "a/.git/hooks/x",
+            "a/.GIT/x",
+            ".git./x",
+            "a/./b",
+            "x\0y",
+            "a/",
         ] {
             assert!(validate_rel_path(bad).is_err(), "{bad:?}");
         }
@@ -226,24 +236,38 @@ mod tests {
 
     #[test]
     fn names_and_extensions() {
-        assert_eq!(split_ext("dir/Razzo.ork"), ("dir/Razzo".into(), ".ork".into()));
+        assert_eq!(
+            split_ext("dir/Razzo.ork"),
+            ("dir/Razzo".into(), ".ork".into())
+        );
         assert_eq!(split_ext(".hidden"), (".hidden".into(), String::new()));
         assert_eq!(split_ext("noext"), ("noext".into(), String::new()));
-        let n = unique_name("a/Razzo.ork", "(copia locale 2026-01-01)", |c| c == "a/Razzo (copia locale 2026-01-01).ork");
+        let n = unique_name("a/Razzo.ork", "(copia locale 2026-01-01)", |c| {
+            c == "a/Razzo (copia locale 2026-01-01).ork"
+        });
         assert_eq!(n, "a/Razzo (copia locale 2026-01-01) (2).ork");
     }
 
     #[test]
     fn noreply_login() {
-        assert_eq!(github_login_from_email("12345+luca@users.noreply.github.com").as_deref(), Some("luca"));
-        assert_eq!(github_login_from_email("luca@users.noreply.github.com").as_deref(), Some("luca"));
+        assert_eq!(
+            github_login_from_email("12345+luca@users.noreply.github.com").as_deref(),
+            Some("luca")
+        );
+        assert_eq!(
+            github_login_from_email("luca@users.noreply.github.com").as_deref(),
+            Some("luca")
+        );
         assert_eq!(github_login_from_email("x@y.it"), None);
     }
 
     #[test]
     fn iso_formats() {
         assert_eq!(iso_from_ms(0), "1970-01-01T00:00:00Z");
-        assert_eq!(iso_to_utc("2026-03-01T12:00:00+01:00"), "2026-03-01T11:00:00Z");
+        assert_eq!(
+            iso_to_utc("2026-03-01T12:00:00+01:00"),
+            "2026-03-01T11:00:00Z"
+        );
     }
 
     #[test]
@@ -253,7 +277,11 @@ mod tests {
         atomic_write(&f, b"one").unwrap();
         atomic_write(&f, b"two").unwrap();
         assert_eq!(fs::read(&f).unwrap(), b"two");
-        assert_eq!(fs::read_dir(d.path().join("a/b")).unwrap().count(), 1, "no temp file left");
+        assert_eq!(
+            fs::read_dir(d.path().join("a/b")).unwrap().count(),
+            1,
+            "no temp file left"
+        );
         remove_file_retry(&f).unwrap();
         prune_empty_parents(d.path(), &f);
         assert!(!d.path().join("a").exists());

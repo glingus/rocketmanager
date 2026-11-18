@@ -40,9 +40,7 @@ mod repo;
 mod version;
 
 pub use error::{GitError, GitErrorKind};
-pub use exec::{
-    CancelToken, Cmd, CommandLog, CommandRecord, Git, GitConfig, Output, RetryPolicy,
-};
+pub use exec::{CancelToken, Cmd, CommandLog, CommandRecord, Git, GitConfig, Output, RetryPolicy};
 pub use message::{parse_message, ParsedMessage};
 pub use redact::redact;
 pub use repo::{

@@ -63,7 +63,10 @@ impl ProjectInner {
             (Some(o), Ok(h)) => !self.repo.is_ancestor(o, &h).unwrap_or(false),
             _ => false,
         };
-        let pending = self.pending_commits().map(|p| !p.is_empty()).unwrap_or(false);
+        let pending = self
+            .pending_commits()
+            .map(|p| !p.is_empty())
+            .unwrap_or(false);
         let open_conflict = self.has_open_conflict().unwrap_or(false);
         if !open_conflict && (before != after || incoming || pending) {
             let _ = self.run_op("sync", Busy::Updating, json!({"background": true}), |op| {

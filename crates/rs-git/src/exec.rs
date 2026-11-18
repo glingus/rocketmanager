@@ -168,7 +168,10 @@ impl Cmd {
         S: AsRef<OsStr>,
     {
         Self {
-            args: args.into_iter().map(|a| a.as_ref().to_os_string()).collect(),
+            args: args
+                .into_iter()
+                .map(|a| a.as_ref().to_os_string())
+                .collect(),
             retry: true,
             ..Default::default()
         }
@@ -475,19 +478,23 @@ impl Git {
         });
         let mut out = child.stdout.take();
         let mut err = child.stderr.take();
-        let out_t = thread::spawn(move || {
+        // Readers report through channels so that a grandchild process keeping the pipes open
+        // (e.g. the shell of an alias or a credential helper) can never block us after git is gone.
+        let (out_tx, out_rx) = std::sync::mpsc::channel::<Vec<u8>>();
+        let (err_tx, err_rx) = std::sync::mpsc::channel::<Vec<u8>>();
+        thread::spawn(move || {
             let mut buf = Vec::new();
             if let Some(o) = out.as_mut() {
                 let _ = o.read_to_end(&mut buf);
             }
-            buf
+            let _ = out_tx.send(buf);
         });
-        let err_t = thread::spawn(move || {
+        thread::spawn(move || {
             let mut buf = Vec::new();
             if let Some(e) = err.as_mut() {
                 let _ = e.read_to_end(&mut buf);
             }
-            buf
+            let _ = err_tx.send(buf);
         });
 
         let timeout = cmd.timeout.unwrap_or(if cmd.network {
@@ -522,8 +529,13 @@ impl Git {
         if let Some(t) = stdin_thread {
             let _ = t.join();
         }
-        let stdout = out_t.join().unwrap_or_default();
-        let stderr_bytes = err_t.join().unwrap_or_default();
+        let drain_wait = if status.is_ok() && !self.cancel.is_cancelled() {
+            Duration::from_secs(10)
+        } else {
+            Duration::from_millis(200)
+        };
+        let stdout = out_rx.recv_timeout(drain_wait).unwrap_or_default();
+        let stderr_bytes = err_rx.recv_timeout(drain_wait).unwrap_or_default();
         let status = status.map_err(|e| (None, e))?;
         let code = status.code().unwrap_or(-1);
         let stderr_raw = String::from_utf8_lossy(&stderr_bytes).into_owned();

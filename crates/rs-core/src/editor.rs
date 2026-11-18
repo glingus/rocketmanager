@@ -60,7 +60,11 @@ pub fn parse_openrocket_title(title: &str) -> Option<OpenRocketTitle> {
         if p.to_lowercase().starts_with("openrocket") {
             // "OpenRocket", "OpenRocket 23.09": the application name
             let rest = p["openrocket".len()..].trim();
-            if rest.is_empty() || rest.chars().all(|c| c.is_ascii_digit() || c == '.' || c == ' ') {
+            if rest.is_empty()
+                || rest
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == '.' || c == ' ')
+            {
                 continue;
             }
         }
@@ -95,7 +99,9 @@ fn find_by_name(root: &Path, name: &str) -> Vec<PathBuf> {
     let mut out = Vec::new();
     let mut stack = vec![(root.to_path_buf(), 0usize)];
     while let Some((dir, depth)) = stack.pop() {
-        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for e in rd.flatten() {
             let p = e.path();
             let fname = e.file_name().to_string_lossy().to_string();
@@ -180,7 +186,8 @@ mod win {
         OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible,
+        EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+        IsWindowVisible,
     };
 
     struct Collector {
@@ -231,7 +238,9 @@ mod win {
 
     /// Lists the visible top-level windows with their process.
     pub fn enumerate_windows() -> Vec<WindowInfo> {
-        let mut c = Collector { windows: Vec::new() };
+        let mut c = Collector {
+            windows: Vec::new(),
+        };
         // SAFETY: `enum_proc` only dereferences the pointer passed here, which outlives the call.
         unsafe {
             EnumWindows(Some(enum_proc), &mut c as *mut Collector as LPARAM);
@@ -288,8 +297,14 @@ mod tests {
             parse_openrocket_title("OpenRocket 23.09 - *Mio razzo v2.ork"),
             Some(OpenRocketTitle::File("Mio razzo v2.ork".into()))
         );
-        assert_eq!(parse_openrocket_title("OpenRocket"), Some(OpenRocketTitle::Idle));
-        assert_eq!(parse_openrocket_title("OpenRocket 23.09"), Some(OpenRocketTitle::Idle));
+        assert_eq!(
+            parse_openrocket_title("OpenRocket"),
+            Some(OpenRocketTitle::Idle)
+        );
+        assert_eq!(
+            parse_openrocket_title("OpenRocket 23.09"),
+            Some(OpenRocketTitle::Idle)
+        );
         assert_eq!(
             parse_openrocket_title("OpenRocket - [Nuovo razzo]"),
             Some(OpenRocketTitle::Unknown)
@@ -305,7 +320,10 @@ mod tests {
         std::fs::write(d.path().join("sub/Razzo.ork"), b"x").unwrap();
         std::fs::write(d.path().join("Altro.ork"), b"x").unwrap();
 
-        assert_eq!(interpret_windows(&[w("notepad.exe", "Razzo.ork")], d.path()), EditorState::NotRunning);
+        assert_eq!(
+            interpret_windows(&[w("notepad.exe", "Razzo.ork")], d.path()),
+            EditorState::NotRunning
+        );
         assert_eq!(interpret_windows(&[], d.path()), EditorState::NotRunning);
 
         let st = interpret_windows(
@@ -325,11 +343,21 @@ mod tests {
 
         // a file with that name that is not in this project: running but nothing of ours is open
         let st = interpret_windows(&[w("openrocket.exe", "OpenRocket - Esterno.ork")], d.path());
-        assert_eq!(st, EditorState::Running { open_files: Some(vec![]) });
+        assert_eq!(
+            st,
+            EditorState::Running {
+                open_files: Some(vec![])
+            }
+        );
 
         // start page only
         let st = interpret_windows(&[w("openrocket.exe", "OpenRocket")], d.path());
-        assert_eq!(st, EditorState::Running { open_files: Some(vec![]) });
+        assert_eq!(
+            st,
+            EditorState::Running {
+                open_files: Some(vec![])
+            }
+        );
 
         // process present, titles not interpretable -> unknown files
         let st = interpret_windows(&[w("openrocket.exe", "Qualcosa di strano")], d.path());

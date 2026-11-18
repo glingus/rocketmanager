@@ -97,7 +97,9 @@ impl EngineEvent {
                 step,
                 percent,
                 message,
-            } => json!({"projectId": project_id, "op": op, "step": step, "percent": percent, "message": message}),
+            } => {
+                json!({"projectId": project_id, "op": op, "step": step, "percent": percent, "message": message})
+            }
             EngineEvent::VersionPublished {
                 project_id,
                 number,
@@ -109,7 +111,9 @@ impl EngineEvent {
                 from_version,
                 to_version,
                 files,
-            } => json!({"projectId": project_id, "fromVersion": from_version, "toVersion": to_version, "files": files}),
+            } => {
+                json!({"projectId": project_id, "fromVersion": from_version, "toVersion": to_version, "files": files})
+            }
             EngineEvent::ConflictDetected {
                 project_id,
                 conflict_id,

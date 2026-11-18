@@ -78,7 +78,8 @@ impl ProjectInner {
         let entries = self.repo.status()?;
         let mut out = Vec::new();
         for e in entries {
-            if e.path.starts_with(".rocketsync/local/") || util::validate_rel_path(&e.path).is_err() {
+            if e.path.starts_with(".rocketsync/local/") || util::validate_rel_path(&e.path).is_err()
+            {
                 continue;
             }
             let change = if e.kind == StatusKind::Untracked || (e.x == 'A' && e.y != 'D') {
@@ -148,14 +149,21 @@ impl ProjectInner {
                         stable: c.stable,
                         valid: c.valid,
                         invalid_reason: c.reason.clone(),
-                        first_invalid_at: if c.valid == Some(false) { Some(now) } else { None },
+                        first_invalid_at: if c.valid == Some(false) {
+                            Some(now)
+                        } else {
+                            None
+                        },
                         checked_at: now,
                     });
                 }
             }
             let before = r.persisted_states.len();
-            r.persisted_states
-                .retain(|p, _| changes.iter().any(|c| &c.path == p && c.change != FileChangeKind::Deleted));
+            r.persisted_states.retain(|p, _| {
+                changes
+                    .iter()
+                    .any(|c| &c.path == p && c.change != FileChangeKind::Deleted)
+            });
             removed = r.persisted_states.len() != before;
         });
         for s in to_save {
@@ -510,10 +518,9 @@ impl ProjectInner {
     pub(crate) fn needs_followup(&self) -> bool {
         self.rt(|r| {
             r.last_status.as_ref().is_some_and(|s| {
-                s.changed_files
-                    .iter()
-                    .any(|f| !f.stable || (f.valid.is_none() && f.change != FileChangeKind::Deleted))
-                    || s.auto_publish_at.is_some()
+                s.changed_files.iter().any(|f| {
+                    !f.stable || (f.valid.is_none() && f.change != FileChangeKind::Deleted)
+                }) || s.auto_publish_at.is_some()
             })
         })
     }

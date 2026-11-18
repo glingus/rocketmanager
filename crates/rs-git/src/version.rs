@@ -73,13 +73,27 @@ mod tests {
     fn parses_versions() {
         assert_eq!(
             GitVersion::parse("git version 2.43.0"),
-            Some(GitVersion { major: 2, minor: 43, patch: 0 })
+            Some(GitVersion {
+                major: 2,
+                minor: 43,
+                patch: 0
+            })
         );
         assert_eq!(
             GitVersion::parse("git version 2.45.1.windows.1\n"),
-            Some(GitVersion { major: 2, minor: 45, patch: 1 })
+            Some(GitVersion {
+                major: 2,
+                minor: 45,
+                patch: 1
+            })
         );
         assert!(GitVersion::parse("hello").is_none());
-        assert!(GitVersion { major: 2, minor: 39, patch: 9 } < MIN_GIT_VERSION);
+        assert!(
+            GitVersion {
+                major: 2,
+                minor: 39,
+                patch: 9
+            } < MIN_GIT_VERSION
+        );
     }
 }

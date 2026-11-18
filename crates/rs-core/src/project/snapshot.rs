@@ -15,7 +15,10 @@ pub(crate) struct TempIndex(pub PathBuf);
 
 impl TempIndex {
     pub(crate) fn new(repo: &Repo) -> Self {
-        TempIndex(repo.git_dir().join(format!("rocketsync-index-{}", random_id(8))))
+        TempIndex(
+            repo.git_dir()
+                .join(format!("rocketsync-index-{}", random_id(8))),
+        )
     }
     pub(crate) fn path(&self) -> &Path {
         &self.0
@@ -105,7 +108,10 @@ impl ProjectInner {
         for r in refs {
             let id = r.name.trim_start_matches(SAFETY_PREFIX).to_string();
             let (ms, op) = match id.split_once('-') {
-                Some((a, b)) => (a.parse::<i64>().unwrap_or(r.date_unix * 1000), b.to_string()),
+                Some((a, b)) => (
+                    a.parse::<i64>().unwrap_or(r.date_unix * 1000),
+                    b.to_string(),
+                ),
                 None => (r.date_unix * 1000, String::new()),
             };
             let count = self.repo.ls_tree(&r.sha)?.len() as u64;
@@ -120,13 +126,19 @@ impl ProjectInner {
     }
 
     /// Writes the files of a safety copy into `dest_dir`; returns the paths written.
-    pub(crate) fn export_snapshot(&self, snapshot_id: &str, dest_dir: &Path) -> Result<Vec<String>> {
+    pub(crate) fn export_snapshot(
+        &self,
+        snapshot_id: &str,
+        dest_dir: &Path,
+    ) -> Result<Vec<String>> {
         if snapshot_id.is_empty()
             || !snapshot_id
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
         {
-            return Err(CoreError::InvalidArgument("id della copia di sicurezza".into()));
+            return Err(CoreError::InvalidArgument(
+                "id della copia di sicurezza".into(),
+            ));
         }
         let name = format!("{SAFETY_PREFIX}{snapshot_id}");
         let sha = self

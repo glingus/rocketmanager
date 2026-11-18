@@ -37,7 +37,11 @@ fn synced_drive_of(path: &Path) -> Option<SyncedDrive> {
         if s.starts_with("dropbox") {
             return Some(SyncedDrive::Dropbox);
         }
-        if s == "google drive" || s == "googledrive" || s == "my drive" || s.starts_with("google drive") {
+        if s == "google drive"
+            || s == "googledrive"
+            || s == "my drive"
+            || s.starts_with("google drive")
+        {
             return Some(SyncedDrive::GoogleDrive);
         }
     }
@@ -48,7 +52,9 @@ fn synced_drive_of(path: &Path) -> Option<SyncedDrive> {
 pub(crate) fn check_folder(path: &Path) -> FolderCheck {
     let exists = path.is_dir();
     let (empty, count) = if exists {
-        let has_any = fs::read_dir(path).map(|mut r| r.next().is_some()).unwrap_or(false);
+        let has_any = fs::read_dir(path)
+            .map(|mut r| r.next().is_some())
+            .unwrap_or(false);
         (!has_any, count_files(path, 100_000))
     } else {
         (true, 0)
@@ -57,7 +63,10 @@ pub(crate) fn check_folder(path: &Path) -> FolderCheck {
         let probe_dir = if exists {
             Some(path.to_path_buf())
         } else {
-            path.ancestors().skip(1).find(|a| a.is_dir()).map(Path::to_path_buf)
+            path.ancestors()
+                .skip(1)
+                .find(|a| a.is_dir())
+                .map(Path::to_path_buf)
         };
         match probe_dir {
             Some(d) => {
@@ -119,7 +128,10 @@ pub(crate) fn link_folder(
     if !check.exists {
         fs::create_dir_all(&folder)?;
     } else if !check.writable {
-        return Err(CoreError::Io(format!("la cartella {} non è scrivibile", folder.display())));
+        return Err(CoreError::Io(format!(
+            "la cartella {} non è scrivibile",
+            folder.display()
+        )));
     }
 
     // Folder that already holds a repository: adopt it only if it points to the same remote.
@@ -134,10 +146,15 @@ pub(crate) fn link_folder(
         progress("fetch", None, "Controllo delle novità");
         repo.fetch(
             "origin",
-            &["refs/heads/main:refs/remotes/origin/main", "refs/tags/*:refs/tags/*"],
+            &[
+                "refs/heads/main:refs/remotes/origin/main",
+                "refs/tags/*:refs/tags/*",
+            ],
         )?;
         if repo.resolve("refs/heads/main")?.is_none() {
-            return Err(CoreError::NotLinked("il repository non ha il branch main".into()));
+            return Err(CoreError::NotLinked(
+                "il repository non ha il branch main".into(),
+            ));
         }
         return Ok(Linked { remote_url });
     }

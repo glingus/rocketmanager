@@ -6,7 +6,10 @@ use common::*;
 use rs_core::*;
 
 fn choice(path: &str, c: ResolutionChoice) -> Vec<FileResolution> {
-    vec![FileResolution { path: path.into(), choice: c }]
+    vec![FileResolution {
+        path: path.into(),
+        choice: c,
+    }]
 }
 
 fn parents(remote: &Remote, rev: &str) -> Vec<String> {
@@ -29,7 +32,10 @@ async fn s02a_conflict_at_push_keeps_everything_and_touches_nothing() {
     assert_eq!(st.state, SyncState::Conflict);
     assert_eq!(st.pending_versions.len(), 1);
     assert_eq!(st.pending_versions[0].title, "Bruno");
-    assert_eq!(st.pending_versions[0].waiting_reason, Some(WaitingReason::Conflict));
+    assert_eq!(
+        st.pending_versions[0].waiting_reason,
+        Some(WaitingReason::Conflict)
+    );
     assert!(st.auto_publish_at.is_none());
     // nothing changed on Bruno's disk
     assert_eq!(d.b.read("Razzo.ork"), ork("di-bruno"));
@@ -44,23 +50,50 @@ async fn s02a_conflict_at_push_keeps_everything_and_touches_nothing() {
     assert_eq!(c.theirs_version, Some(2));
     assert_eq!(c.theirs_author.as_deref(), Some("Anna"));
     assert!(c.remote_branch_pushed);
-    assert_eq!(c.projectId_or(), PROJECT);
-    assert!(id.len() == 15 && id.chars().nth(8) == Some('-'), "id format AAAAMMGG-xxxxxx: {id}");
+    assert_eq!(c.project_id, PROJECT);
+    assert!(
+        id.len() == 15 && id.chars().nth(8) == Some('-'),
+        "id format AAAAMMGG-xxxxxx: {id}"
+    );
 
     // both versions are recoverable from the server
     assert!(remote_branch_exists(&d.remote, &id));
-    let on_branch = git_bytes(&d.remote.path, &["show", &format!("conflitti/{id}:Razzo.ork")]);
+    let on_branch = git_bytes(
+        &d.remote.path,
+        &["show", &format!("conflitti/{id}:Razzo.ork")],
+    );
     assert_eq!(on_branch, ork("di-bruno"));
     let on_main = git_bytes(&d.remote.path, &["show", "refs/heads/main:Razzo.ork"]);
     assert_eq!(on_main, ork("di-anna"));
     assert_eq!(d.remote.tags(), vec!["v1", "v2"]);
 
     // sides can be read and exported (to open in OpenRocket) without touching the project
-    let side = |s| d.b.engine.read_conflict_side(PROJECT, id.clone(), "Razzo.ork".into(), s);
-    assert_eq!(side(ConflictSide::Base).await.unwrap().unwrap(), ork("base"));
-    assert_eq!(side(ConflictSide::Ours).await.unwrap().unwrap(), ork("di-bruno"));
-    assert_eq!(side(ConflictSide::Theirs).await.unwrap().unwrap(), ork("di-anna"));
-    let copy = d.b.engine.export_conflict_copy(PROJECT, id.clone(), "Razzo.ork".into(), ConflictSide::Theirs).await.unwrap();
+    let side = |s| {
+        d.b.engine
+            .read_conflict_side(PROJECT, id.clone(), "Razzo.ork".into(), s)
+    };
+    assert_eq!(
+        side(ConflictSide::Base).await.unwrap().unwrap(),
+        ork("base")
+    );
+    assert_eq!(
+        side(ConflictSide::Ours).await.unwrap().unwrap(),
+        ork("di-bruno")
+    );
+    assert_eq!(
+        side(ConflictSide::Theirs).await.unwrap().unwrap(),
+        ork("di-anna")
+    );
+    let copy =
+        d.b.engine
+            .export_conflict_copy(
+                PROJECT,
+                id.clone(),
+                "Razzo.ork".into(),
+                ConflictSide::Theirs,
+            )
+            .await
+            .unwrap();
     assert!(copy.starts_with(d.b.path(".rocketsync/local/conflitti")));
     assert_eq!(std::fs::read(&copy).unwrap(), ork("di-anna"));
     assert_eq!(d.b.read("Razzo.ork"), ork("di-bruno"));
@@ -83,15 +116,6 @@ async fn s02a_conflict_at_push_keeps_everything_and_touches_nothing() {
     assert_no_forbidden_commands(&d.b.engine);
 }
 
-trait ProjectIdOr {
-    fn projectId_or(&self) -> String;
-}
-impl ProjectIdOr for Conflict {
-    fn projectId_or(&self) -> String {
-        self.project_id.clone()
-    }
-}
-
 fn remote_branch_exists(remote: &Remote, id: &str) -> bool {
     remote.has_ref(&format!("refs/heads/conflitti/{id}"))
 }
@@ -112,65 +136,115 @@ async fn s02b_conflict_at_fetch_without_publishing() {
     assert_eq!(d.b.read("Razzo.ork"), ork("di-bruno"), "disk untouched");
     // his unpublished changes were saved as a pending version
     assert_eq!(st.pending_versions.len(), 1);
-    assert_eq!(st.pending_versions[0].title, "Modifiche locali in conflitto");
+    assert_eq!(
+        st.pending_versions[0].title,
+        "Modifiche locali in conflitto"
+    );
     assert!(st.changed_files.is_empty());
-    let on_branch = git_bytes(&d.remote.path, &["show", &format!("conflitti/{id}:Razzo.ork")]);
+    let on_branch = git_bytes(
+        &d.remote.path,
+        &["show", &format!("conflitti/{id}:Razzo.ork")],
+    );
     assert_eq!(on_branch, ork("di-bruno"));
     assert_eq!(d.remote.tags(), vec!["v1", "v2"], "nothing was published");
 
     // and a safety copy of the folder exists
     let snaps = d.b.engine.list_snapshots(PROJECT).await.unwrap();
-    assert!(snaps.iter().any(|s| s.operation == "conflitto"), "{snaps:?}");
+    assert!(
+        snaps.iter().any(|s| s.operation == "conflitto"),
+        "{snaps:?}"
+    );
 }
 
 #[tokio::test]
 async fn conflict_branch_is_pushed_later_when_offline() {
-    let d = Duel::start().await;
-    d.a.write_ork("Razzo.ork", "di-anna");
-    d.a.publish("Anna").await.unwrap();
-    d.b.write_ork("Razzo.ork", "di-bruno");
-    // fetch works, then the network drops exactly when the branch is pushed
-    let remote_path = d.remote.path.clone();
-    let away = d.remote.root.path().join("away.git");
-    let (rp, aw) = (remote_path.clone(), away.clone());
-    d.b.engine.failpoints().set(
+    let remote = Remote::new();
+    let a = User::linked("Anna", &remote).await;
+    a.write_ork("Razzo.ork", "base");
+    a.publish("Base").await.unwrap();
+    // Bruno runs a background engine: it retries the branch push by itself
+    let tmp = tempfile::tempdir().unwrap();
+    let data_dir = tmp.path().join("data");
+    let detector = std::sync::Arc::new(MockDetector::default());
+    let mut cfg = test_config(&data_dir, detector.clone());
+    cfg.background = true;
+    cfg.timing.fetch_interval = std::time::Duration::from_millis(100);
+    let engine = Engine::open(cfg).await.unwrap();
+    engine.set_identity(Some(Identity {
+        name: "Bruno".into(),
+        email: "1+bruno@users.noreply.github.com".into(),
+    }));
+    let folder = tmp.path().join("p");
+    engine
+        .link_project(LinkRequest {
+            project_id: PROJECT.into(),
+            repo_full_name: "t/r".into(),
+            remote_url: Some(remote.url.clone()),
+            folder: folder.to_string_lossy().into_owned(),
+            allow_synced_drive: false,
+        })
+        .await
+        .unwrap();
+    engine
+        .set_publish_policy(PROJECT, PublishPolicy::Manual)
+        .unwrap();
+    a.write_ork("Razzo.ork", "di-anna");
+    std::fs::write(folder.join("Razzo.ork"), ork("di-bruno")).unwrap();
+    a.publish("Anna").await.unwrap();
+
+    // the network drops exactly when the safety branch is pushed
+    let (rp, aw) = (remote.path.clone(), remote.root.path().join("away.git"));
+    let (rp2, aw2) = (rp.clone(), aw.clone());
+    engine.failpoints().set(
         "conflict.before_branch_push",
         FailAction::Callback(std::sync::Arc::new(move || {
-            std::fs::rename(&rp, &aw).unwrap();
+            let _ = std::fs::rename(&rp2, &aw2);
         })),
     );
-    let st = d.b.sync().await;
-    assert_eq!(st.state, SyncState::Conflict);
-    let id = st.open_conflict_ids[0].clone();
-    let c = d.b.engine.get_conflict(PROJECT, id.clone()).await.unwrap();
-    assert!(!c.remote_branch_pushed);
-    std::fs::rename(&away, &remote_path).unwrap();
-    d.b.engine.failpoints().clear_all();
-    d.b.sync().await; // fetch continues and the branch is retried at the next background pass
-    // the background loop is off in tests: trigger the retry through the public tick path
-    let b = d.b.restart().await;
-    b.engine.start().await.unwrap();
-    let st = b.engine.sync_now(PROJECT).await.unwrap();
-    assert_eq!(st.state, SyncState::Conflict);
-    // `sync_now` does not retry; the periodic loop does. Run it with a background engine:
-    let c = b.engine.get_conflict(PROJECT, id.clone()).await.unwrap();
-    if !c.remote_branch_pushed {
-        // retry path used by the background loop
-        let mut cfg = test_config(&b.data_dir, b.detector.clone());
-        cfg.background = true;
-        cfg.timing.fetch_interval = std::time::Duration::from_millis(50);
-        b.engine.shutdown().await;
-        let e2 = Engine::open(cfg).await.unwrap();
-        e2.set_identity(Some(Identity { name: "Bruno".into(), email: "1+bruno@users.noreply.github.com".into() }));
-        for _ in 0..100 {
-            if e2.get_conflict(PROJECT, id.clone()).await.unwrap().remote_branch_pushed {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    let mut id = String::new();
+    for _ in 0..100 {
+        let st = engine.status(PROJECT).await.unwrap();
+        if let Some(i) = st.open_conflict_ids.first() {
+            id = i.clone();
+            break;
         }
-        assert!(e2.get_conflict(PROJECT, id.clone()).await.unwrap().remote_branch_pushed);
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
-    assert!(remote_branch_exists(&d.remote, &id));
+    assert!(
+        !id.is_empty(),
+        "conflict not detected by the background fetch"
+    );
+    engine.failpoints().clear_all();
+    assert!(
+        !engine
+            .get_conflict(PROJECT, id.clone())
+            .await
+            .unwrap()
+            .remote_branch_pushed
+    );
+    std::fs::rename(&aw, &rp).unwrap();
+    let mut pushed = false;
+    for _ in 0..100 {
+        if engine
+            .get_conflict(PROJECT, id.clone())
+            .await
+            .unwrap()
+            .remote_branch_pushed
+        {
+            pushed = true;
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    assert!(pushed, "the background loop must retry the branch push");
+    assert!(remote_branch_exists(&remote, &id));
+    assert_eq!(
+        git_bytes(
+            &remote.path,
+            &["show", &format!("conflitti/{id}:Razzo.ork")]
+        ),
+        ork("di-bruno")
+    );
 }
 
 // ---- 2c. the four resolutions --------------------------------------------------------------
@@ -182,12 +256,11 @@ async fn resolved_duel(c: ResolutionChoice) -> (Duel, String, ProjectStatus) {
         d.b.write_ork("Razzo.ork", "unione-manuale");
     }
     let mut rx = d.b.engine.subscribe();
-    let st = d
-        .b
-        .engine
-        .resolve_conflict(PROJECT, id.clone(), choice("Razzo.ork", c))
-        .await
-        .unwrap();
+    let st =
+        d.b.engine
+            .resolve_conflict(PROJECT, id.clone(), choice("Razzo.ork", c))
+            .await
+            .unwrap();
     // common checks of every resolution
     assert_synced(&st);
     assert_eq!(st.head_version, Some(3));
@@ -195,10 +268,20 @@ async fn resolved_duel(c: ResolutionChoice) -> (Duel, String, ProjectStatus) {
     let tip = "refs/heads/main";
     let ps = parents(&d.remote, tip);
     assert_eq!(ps.len(), 2, "merge commit with two parents");
-    assert_eq!(ps[0], git(&d.remote.path, &["rev-parse", "v2^{commit}"]), "first parent is the colleague's v2");
+    assert_eq!(
+        ps[0],
+        git(&d.remote.path, &["rev-parse", "v2^{commit}"]),
+        "first parent is the colleague's v2"
+    );
     assert!(is_ancestor(&d.remote.path, "v1", tip) && is_ancestor(&d.remote.path, "v2", tip));
-    assert!(is_ancestor(&d.remote.path, &ps[1], tip), "Bruno's own line of work is in the history");
-    assert_eq!(git(&d.remote.path, &["log", "-1", "--format=%s", &ps[1]]), "v? — Bruno");
+    assert!(
+        is_ancestor(&d.remote.path, &ps[1], tip),
+        "Bruno's own line of work is in the history"
+    );
+    assert_eq!(
+        git(&d.remote.path, &["log", "-1", "--format=%s", &ps[1]]),
+        "v? — Bruno"
+    );
     let subjects = d.remote.log_subjects();
     assert_eq!(
         subjects,
@@ -210,24 +293,52 @@ async fn resolved_duel(c: ResolutionChoice) -> (Duel, String, ProjectStatus) {
         ]
     );
     let msg = git(&d.remote.path, &["log", "-1", "--format=%B", tip]);
-    assert!(msg.contains("Rocket-Sync-Kind: conflict-resolution"), "{msg}");
-    assert!(msg.contains(&format!("Rocket-Sync-Conflict: {id}")), "{msg}");
-    assert!(msg.contains(&format!("Rocket-Sync-Resolution: Razzo.ork={}", match c {
-        ResolutionChoice::Mine => "mine",
-        ResolutionChoice::Theirs => "theirs",
-        ResolutionChoice::Both => "both",
-        ResolutionChoice::Manual => "manual",
-    })), "{msg}");
+    assert!(
+        msg.contains("Rocket-Sync-Kind: conflict-resolution"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains(&format!("Rocket-Sync-Conflict: {id}")),
+        "{msg}"
+    );
+    assert!(
+        msg.contains(&format!(
+            "Rocket-Sync-Resolution: Razzo.ork={}",
+            match c {
+                ResolutionChoice::Mine => "mine",
+                ResolutionChoice::Theirs => "theirs",
+                ResolutionChoice::Both => "both",
+                ResolutionChoice::Manual => "manual",
+            }
+        )),
+        "{msg}"
+    );
     assert!(msg.contains("Rocket-Sync-Version: 3"), "{msg}");
-    assert_eq!(d.remote.branches(), vec!["main"], "the safety branch is removed after sending");
+    assert_eq!(
+        d.remote.branches(),
+        vec!["main"],
+        "the safety branch is removed after sending"
+    );
     let conflicts = d.b.engine.list_conflicts(PROJECT, true).await.unwrap();
     assert_eq!(conflicts.len(), 1);
     assert_eq!(conflicts[0].status, ConflictStatusDto::Resolved);
-    assert!(d.b.engine.list_conflicts(PROJECT, false).await.unwrap().is_empty());
+    assert!(d
+        .b
+        .engine
+        .list_conflicts(PROJECT, false)
+        .await
+        .unwrap()
+        .is_empty());
     let ev = drain(&mut rx);
     assert!(ev.iter().any(|e| matches!(e, EngineEvent::ConflictResolved { number: Some(3), conflict_id, .. } if *conflict_id == id)), "{ev:?}");
-    assert!(ev.iter().any(|e| matches!(e, EngineEvent::VersionPublished { number: 3, .. })));
-    let versions = d.b.engine.list_versions(PROJECT, Some(1), None).await.unwrap();
+    assert!(ev
+        .iter()
+        .any(|e| matches!(e, EngineEvent::VersionPublished { number: 3, .. })));
+    let versions =
+        d.b.engine
+            .list_versions(PROJECT, Some(1), None)
+            .await
+            .unwrap();
     assert_eq!(versions[0].kind, VersionKind::ConflictResolution);
     assert_eq!(versions[0].conflict_id.as_deref(), Some(id.as_str()));
     d.b.assert_clean();
@@ -253,17 +364,28 @@ async fn s02c_resolve_theirs() {
     assert_eq!(d.a.read("Razzo.ork"), ork("di-anna"));
     // Bruno's work is not lost: it stays in the history and in a safety copy
     let second_parent = git(&d.remote.path, &["rev-parse", "refs/heads/main^2"]);
-    assert_eq!(git_bytes(&d.remote.path, &["show", &format!("{second_parent}:Razzo.ork")]), ork("di-bruno"));
-    let snaps = d.b.engine.list_snapshots(PROJECT).await.unwrap();
-    assert!(snaps.iter().any(|s| s.operation == "risoluzione"), "{snaps:?}");
+    assert_eq!(
+        git_bytes(
+            &d.remote.path,
+            &["show", &format!("{second_parent}:Razzo.ork")]
+        ),
+        ork("di-bruno")
+    );
 }
 
 #[tokio::test]
 async fn s02c_resolve_both_keeps_two_files() {
     let (d, _id, _) = resolved_duel(ResolutionChoice::Both).await;
     assert_eq!(d.b.read("Razzo.ork"), ork("di-anna"));
-    let names: Vec<String> = std::fs::read_dir(&d.b.folder).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
-    let mine = names.iter().find(|n| n.starts_with("Razzo - versione Bruno ") && n.ends_with(".ork")).unwrap_or_else(|| panic!("{names:?}"));
+    let names: Vec<String> = std::fs::read_dir(&d.b.folder)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    let mine = names
+        .iter()
+        .find(|n| n.starts_with("Razzo - versione Bruno ") && n.ends_with(".ork"))
+        .unwrap_or_else(|| panic!("{names:?}"));
     assert_eq!(d.b.read(mine), ork("di-bruno"));
     // Anna gets both as well
     assert_eq!(d.a.read("Razzo.ork"), ork("di-anna"));
@@ -275,7 +397,10 @@ async fn s02c_resolve_manual() {
     let (d, _id, _) = resolved_duel(ResolutionChoice::Manual).await;
     assert_eq!(d.b.read("Razzo.ork"), ork("unione-manuale"));
     assert_eq!(d.a.read("Razzo.ork"), ork("unione-manuale"));
-    assert_eq!(git_bytes(&d.remote.path, &["show", "refs/heads/main:Razzo.ork"]), ork("unione-manuale"));
+    assert_eq!(
+        git_bytes(&d.remote.path, &["show", "refs/heads/main:Razzo.ork"]),
+        ork("unione-manuale")
+    );
 }
 
 #[tokio::test]
@@ -284,23 +409,42 @@ async fn manual_resolution_requires_a_valid_stable_file() {
     let id = d.conflict_at_push().await;
     let before = d.b.head();
     d.b.write("Razzo.ork", &partial_ork("a-meta"));
-    let e = d
-        .b
-        .engine
-        .resolve_conflict(PROJECT, id.clone(), choice("Razzo.ork", ResolutionChoice::Manual))
-        .await
-        .unwrap_err();
+    let e =
+        d.b.engine
+            .resolve_conflict(
+                PROJECT,
+                id.clone(),
+                choice("Razzo.ork", ResolutionChoice::Manual),
+            )
+            .await
+            .unwrap_err();
     assert_eq!(e.code(), ErrorCode::FileInvalid, "{e}");
     assert_eq!(d.b.head(), before, "nothing was committed");
     assert_eq!(d.b.status().await.open_conflict_ids, vec![id.clone()]);
     // wrong requests are rejected without side effects
-    let e = d.b.engine.resolve_conflict(PROJECT, id.clone(), vec![]).await.unwrap_err();
+    let e =
+        d.b.engine
+            .resolve_conflict(PROJECT, id.clone(), vec![])
+            .await
+            .unwrap_err();
     assert_eq!(e.code(), ErrorCode::Internal);
-    let e = d.b.engine.resolve_conflict(PROJECT, id.clone(), choice("Altro.ork", ResolutionChoice::Mine)).await.unwrap_err();
+    let e =
+        d.b.engine
+            .resolve_conflict(
+                PROJECT,
+                id.clone(),
+                choice("Altro.ork", ResolutionChoice::Mine),
+            )
+            .await
+            .unwrap_err();
     assert_eq!(e.code(), ErrorCode::InvalidPath);
     // once the file is complete it works
     d.b.write_ork("Razzo.ork", "finito");
-    let st = d.b.engine.resolve_conflict(PROJECT, id, choice("Razzo.ork", ResolutionChoice::Manual)).await.unwrap();
+    let st =
+        d.b.engine
+            .resolve_conflict(PROJECT, id, choice("Razzo.ork", ResolutionChoice::Manual))
+            .await
+            .unwrap();
     assert_synced(&st);
 }
 
@@ -311,11 +455,23 @@ async fn resolving_waits_for_a_closed_editor() {
     d.b.detector.running_with(vec![d.b.path("Razzo.ork")]);
     let before_disk = d.b.read("Razzo.ork");
     // choosing "theirs" would overwrite the file Bruno has open
-    let e = d.b.engine.resolve_conflict(PROJECT, id.clone(), choice("Razzo.ork", ResolutionChoice::Theirs)).await.unwrap_err();
+    let e =
+        d.b.engine
+            .resolve_conflict(
+                PROJECT,
+                id.clone(),
+                choice("Razzo.ork", ResolutionChoice::Theirs),
+            )
+            .await
+            .unwrap_err();
     assert_eq!(e.code(), ErrorCode::BlockedByEditor);
     assert_eq!(d.b.read("Razzo.ork"), before_disk);
     // "mine" does not write anything: allowed
-    let st = d.b.engine.resolve_conflict(PROJECT, id, choice("Razzo.ork", ResolutionChoice::Mine)).await.unwrap();
+    let st =
+        d.b.engine
+            .resolve_conflict(PROJECT, id, choice("Razzo.ork", ResolutionChoice::Mine))
+            .await
+            .unwrap();
     assert_synced(&st);
 }
 
@@ -332,10 +488,18 @@ async fn modified_vs_deleted_and_deleted_vs_modified() {
     let id = st.open_conflict_ids[0].clone();
     let c = d.b.engine.get_conflict(PROJECT, id.clone()).await.unwrap();
     assert_eq!(c.files[0].kind, ConflictFileKind::ModifiedDeleted);
-    let st = d.b.engine.resolve_conflict(PROJECT, id, choice("Razzo.ork", ResolutionChoice::Theirs)).await.unwrap();
+    let st =
+        d.b.engine
+            .resolve_conflict(PROJECT, id, choice("Razzo.ork", ResolutionChoice::Theirs))
+            .await
+            .unwrap();
     assert_synced(&st);
     assert!(!d.b.exists("Razzo.ork"), "the deletion won");
-    assert!(!git(&d.remote.path, &["ls-tree", "-r", "--name-only", "refs/heads/main"]).contains("Razzo.ork"));
+    assert!(!git(
+        &d.remote.path,
+        &["ls-tree", "-r", "--name-only", "refs/heads/main"]
+    )
+    .contains("Razzo.ork"));
 
     // Anna modifies, Bruno deletes; Bruno keeps Anna's file
     let d = Duel::start().await;
@@ -346,7 +510,11 @@ async fn modified_vs_deleted_and_deleted_vs_modified() {
     let id = st.open_conflict_ids[0].clone();
     let c = d.b.engine.get_conflict(PROJECT, id.clone()).await.unwrap();
     assert_eq!(c.files[0].kind, ConflictFileKind::DeletedModified);
-    let st = d.b.engine.resolve_conflict(PROJECT, id, choice("Razzo.ork", ResolutionChoice::Theirs)).await.unwrap();
+    let st =
+        d.b.engine
+            .resolve_conflict(PROJECT, id, choice("Razzo.ork", ResolutionChoice::Theirs))
+            .await
+            .unwrap();
     assert_synced(&st);
     assert_eq!(d.b.read("Razzo.ork"), ork("di-anna"), "the file is back");
 }
@@ -359,7 +527,11 @@ async fn added_by_both_with_different_content_is_a_conflict() {
     d.a.publish("Anna").await.unwrap();
     let st = d.b.publish("Bruno").await.unwrap();
     assert_eq!(st.state, SyncState::Conflict);
-    let c = d.b.engine.get_conflict(PROJECT, st.open_conflict_ids[0].clone()).await.unwrap();
+    let c =
+        d.b.engine
+            .get_conflict(PROJECT, st.open_conflict_ids[0].clone())
+            .await
+            .unwrap();
     assert_eq!(c.files[0].kind, ConflictFileKind::BothAdded);
     assert_eq!(d.b.read("Nuovo.ork"), ork("bruno"));
 }
@@ -396,23 +568,44 @@ async fn resolution_made_offline_is_sent_later_with_a_new_number() {
     let d = Duel::start().await;
     let id = d.conflict_at_push().await;
     d.remote.go_offline();
-    let st = d.b.engine.resolve_conflict(PROJECT, id.clone(), choice("Razzo.ork", ResolutionChoice::Mine)).await.unwrap();
+    let st =
+        d.b.engine
+            .resolve_conflict(
+                PROJECT,
+                id.clone(),
+                choice("Razzo.ork", ResolutionChoice::Mine),
+            )
+            .await
+            .unwrap();
     assert_eq!(st.state, SyncState::Offline, "{st:#?}");
     assert_eq!(st.pending_versions.len(), 1);
     assert!(st.open_conflict_ids.is_empty(), "the user is done");
     d.remote.go_online();
     // meanwhile a colleague published something else
-    d.remote.push_as_colleague(&[("Altro.ork", &ork("altro"))], 3, "Altro");
+    d.remote
+        .push_as_colleague(&[("Altro.ork", &ork("altro"))], 3, "Altro");
     let mut rx = d.b.engine.subscribe();
     let st = d.b.sync().await;
     assert_synced(&st);
     assert_eq!(st.head_version, Some(4));
     assert_eq!(d.remote.tags(), vec!["v1", "v2", "v3", "v4"]);
-    assert_eq!(d.remote.log_subjects()[0], "v4 — Risolto il conflitto su Razzo.ork");
+    assert_eq!(
+        d.remote.log_subjects()[0],
+        "v4 — Risolto il conflitto su Razzo.ork"
+    );
     assert_eq!(parents(&d.remote, "refs/heads/main").len(), 2);
     assert_eq!(d.remote.branches(), vec!["main"]);
     let ev = drain(&mut rx);
-    assert!(ev.iter().any(|e| matches!(e, EngineEvent::ConflictResolved { number: Some(4), .. })), "{ev:?}");
+    assert!(
+        ev.iter().any(|e| matches!(
+            e,
+            EngineEvent::ConflictResolved {
+                number: Some(4),
+                ..
+            }
+        )),
+        "{ev:?}"
+    );
     assert_eq!(d.b.read("Altro.ork"), ork("altro"));
     assert_eq!(d.b.read("Razzo.ork"), ork("di-bruno"));
 }
@@ -439,7 +632,11 @@ async fn s05_update_is_blocked_by_an_open_file_and_nothing_is_touched() {
     assert_eq!(st.state, SyncState::UpdateAvailable);
     assert_eq!(st.behind_by, 1);
     assert_eq!(st.blocked_by_editor, vec!["Razzo.ork".to_string()]);
-    assert_eq!(b.read("Razzo.ork"), ork("uno"), "the open file is not touched");
+    assert_eq!(
+        b.read("Razzo.ork"),
+        ork("uno"),
+        "the open file is not touched"
+    );
     let st = b.engine.update_now(PROJECT, false).await.unwrap();
     assert_eq!(st.state, SyncState::UpdateAvailable);
     assert_eq!(b.read("Razzo.ork"), ork("uno"));
@@ -471,9 +668,13 @@ async fn s05_forced_update_then_stale_save_becomes_a_conflict_not_an_overwrite()
 
     // OpenRocket still shows the old file; the user edits and saves it -> same path, old base
     b.write_ork("Razzo.ork", "uno-con-modifiche-di-bruno");
-    let st = b.wait_status(5, |s| !s.stale_save_suspected.is_empty()).await;
+    let st = b
+        .wait_status(5, |s| !s.stale_save_suspected.is_empty())
+        .await;
     assert_eq!(st.stale_save_suspected, vec!["Razzo.ork".to_string()]);
-    assert!(drain(&mut rx).iter().any(|e| matches!(e, EngineEvent::StaleSaveSuspected { path, .. } if path == "Razzo.ork")));
+    assert!(drain(&mut rx)
+        .iter()
+        .any(|e| matches!(e, EngineEvent::StaleSaveSuspected { path, .. } if path == "Razzo.ork")));
     // it cannot be published until the user answers
     let e = b.publish("subito").await.unwrap_err();
     assert_eq!(e.code(), ErrorCode::ConflictOpen);
@@ -481,31 +682,58 @@ async fn s05_forced_update_then_stale_save_becomes_a_conflict_not_an_overwrite()
     assert_eq!(remote.tags(), vec!["v1", "v2"]);
 
     // "No / non so" -> a conflict (base = version before the update, theirs = what we wrote)
-    let st = b.engine.answer_stale_save(PROJECT, "Razzo.ork".into(), false).await.unwrap();
+    let st = b
+        .engine
+        .answer_stale_save(PROJECT, "Razzo.ork".into(), false)
+        .await
+        .unwrap();
     assert_eq!(st.state, SyncState::Conflict, "{st:#?}");
     assert!(st.stale_save_suspected.is_empty());
-    assert_eq!(b.read("Razzo.ork"), ork("uno-con-modifiche-di-bruno"), "the saved file is not overwritten");
+    assert_eq!(
+        b.read("Razzo.ork"),
+        ork("uno-con-modifiche-di-bruno"),
+        "the saved file is not overwritten"
+    );
     let id = st.open_conflict_ids[0].clone();
     let c = b.engine.get_conflict(PROJECT, id.clone()).await.unwrap();
     assert_eq!(c.files[0].kind, ConflictFileKind::BothModified);
     assert_eq!(c.theirs_version, Some(2));
-    let side = |s| b.engine.read_conflict_side(PROJECT, id.clone(), "Razzo.ork".into(), s);
+    let side = |s| {
+        b.engine
+            .read_conflict_side(PROJECT, id.clone(), "Razzo.ork".into(), s)
+    };
     assert_eq!(side(ConflictSide::Base).await.unwrap().unwrap(), ork("uno"));
-    assert_eq!(side(ConflictSide::Theirs).await.unwrap().unwrap(), ork("due"));
-    assert_eq!(side(ConflictSide::Ours).await.unwrap().unwrap(), ork("uno-con-modifiche-di-bruno"));
+    assert_eq!(
+        side(ConflictSide::Theirs).await.unwrap().unwrap(),
+        ork("due")
+    );
+    assert_eq!(
+        side(ConflictSide::Ours).await.unwrap().unwrap(),
+        ork("uno-con-modifiche-di-bruno")
+    );
     assert!(c.remote_branch_pushed);
     assert_eq!(
-        git_bytes(&remote.path, &["show", &format!("conflitti/{id}:Razzo.ork")]),
+        git_bytes(
+            &remote.path,
+            &["show", &format!("conflitti/{id}:Razzo.ork")]
+        ),
         ork("uno-con-modifiche-di-bruno")
     );
 
     // resolution works like any other
     b.detector.not_running();
-    let st = b.engine.resolve_conflict(PROJECT, id, choice("Razzo.ork", ResolutionChoice::Mine)).await.unwrap();
+    let st = b
+        .engine
+        .resolve_conflict(PROJECT, id, choice("Razzo.ork", ResolutionChoice::Mine))
+        .await
+        .unwrap();
     assert_synced(&st);
     assert_eq!(st.head_version, Some(3));
     assert_eq!(parents(&remote, "refs/heads/main").len(), 2);
-    assert_eq!(git_bytes(&remote.path, &["show", "refs/heads/main:Razzo.ork"]), ork("uno-con-modifiche-di-bruno"));
+    assert_eq!(
+        git_bytes(&remote.path, &["show", "refs/heads/main:Razzo.ork"]),
+        ork("uno-con-modifiche-di-bruno")
+    );
     assert_eq!(remote.branches(), vec!["main"]);
 }
 
@@ -514,8 +742,13 @@ async fn s05_user_confirms_he_reopened_the_file() {
     let (remote, _a, b) = guard_setup().await;
     b.engine.update_now(PROJECT, true).await.unwrap();
     b.write_ork("Razzo.ork", "dopo-riapertura");
-    b.wait_status(5, |s| !s.stale_save_suspected.is_empty()).await;
-    let st = b.engine.answer_stale_save(PROJECT, "Razzo.ork".into(), true).await.unwrap();
+    b.wait_status(5, |s| !s.stale_save_suspected.is_empty())
+        .await;
+    let st = b
+        .engine
+        .answer_stale_save(PROJECT, "Razzo.ork".into(), true)
+        .await
+        .unwrap();
     assert!(st.stale_save_suspected.is_empty());
     assert_eq!(st.state, SyncState::LocalChanges);
     assert!(b.store().list_watches(PROJECT).unwrap().is_empty());
@@ -523,7 +756,11 @@ async fn s05_user_confirms_he_reopened_the_file() {
     assert_synced(&st);
     assert_eq!(remote.tags(), vec!["v1", "v2", "v3"]);
     // answering when nothing is suspected is an error
-    let e = b.engine.answer_stale_save(PROJECT, "Razzo.ork".into(), true).await.unwrap_err();
+    let e = b
+        .engine
+        .answer_stale_save(PROJECT, "Razzo.ork".into(), true)
+        .await
+        .unwrap_err();
     assert_eq!(e.code(), ErrorCode::NotFound);
 }
 
@@ -538,7 +775,11 @@ async fn s05_guard_closes_by_itself_when_the_editor_is_closed() {
     assert!(b.store().list_watches(PROJECT).unwrap().is_empty());
     // a later save is just a normal change
     b.write_ork("Razzo.ork", "modifica-normale");
-    let st = b.wait_status(5, |s| s.changed_files.len() == 1 && s.changed_files[0].valid.is_some()).await;
+    let st = b
+        .wait_status(5, |s| {
+            s.changed_files.len() == 1 && s.changed_files[0].valid.is_some()
+        })
+        .await;
     assert!(st.stale_save_suspected.is_empty());
     assert_eq!(st.state, SyncState::LocalChanges);
 }
@@ -550,7 +791,9 @@ async fn s05_saving_right_before_closing_the_editor_is_still_detected() {
     b.write_ork("Razzo.ork", "salvato-poi-chiuso");
     // the user saves and closes OpenRocket before the engine looked at the file
     b.detector.not_running();
-    let st = b.wait_status(5, |s| !s.stale_save_suspected.is_empty()).await;
+    let st = b
+        .wait_status(5, |s| !s.stale_save_suspected.is_empty())
+        .await;
     assert_eq!(st.stale_save_suspected, vec!["Razzo.ork".to_string()]);
 }
 

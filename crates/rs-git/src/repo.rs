@@ -224,7 +224,11 @@ impl Repo {
     pub fn resolve(&self, spec: &str) -> Result<Option<String>, GitError> {
         let o = self.run(Cmd::new(["rev-parse", "--verify", "--quiet", spec]).ok_codes(&[1]))?;
         let s = o.stdout_trimmed();
-        Ok(if o.code == 0 && !s.is_empty() { Some(s) } else { None })
+        Ok(if o.code == 0 && !s.is_empty() {
+            Some(s)
+        } else {
+            None
+        })
     }
 
     /// Tree id of a commit.
@@ -263,7 +267,11 @@ impl Repo {
     pub fn merge_base(&self, a: &str, b: &str) -> Result<Option<String>, GitError> {
         let o = self.run(Cmd::new(["merge-base", a, b]).ok_codes(&[1]))?;
         let s = o.stdout_trimmed();
-        Ok(if o.code == 0 && !s.is_empty() { Some(s) } else { None })
+        Ok(if o.code == 0 && !s.is_empty() {
+            Some(s)
+        } else {
+            None
+        })
     }
 
     /// `git rev-list` with arbitrary arguments; returns the object ids.
@@ -431,9 +439,8 @@ impl Repo {
                 continue;
             }
             if p.contains('\n') {
-                let o = self.run(
-                    Cmd::new(["hash-object", "--no-filters", "--"]).arg(OsString::from(p)),
-                )?;
+                let o = self
+                    .run(Cmd::new(["hash-object", "--no-filters", "--"]).arg(OsString::from(p)))?;
                 result[i] = Some(o.stdout_trimmed());
             } else {
                 batch.push(i);
@@ -446,12 +453,15 @@ impl Repo {
                 input.push('\n');
             }
             let o = self.run(
-                Cmd::new(["hash-object", "--no-filters", "--stdin-paths"]).stdin(input.into_bytes()),
+                Cmd::new(["hash-object", "--no-filters", "--stdin-paths"])
+                    .stdin(input.into_bytes()),
             )?;
             let text = o.stdout_string();
             let lines: Vec<&str> = text.lines().collect();
             if lines.len() != batch.len() {
-                return Err(GitError::Parse("hash-object: numero di risultati inatteso".into()));
+                return Err(GitError::Parse(
+                    "hash-object: numero di risultati inatteso".into(),
+                ));
             }
             for (k, &i) in batch.iter().enumerate() {
                 result[i] = Some(lines[k].trim().to_string());
@@ -475,7 +485,16 @@ impl Repo {
 
     /// Paths reported as binary by `git diff-tree --numstat` between two tree-ish objects.
     pub fn binary_paths(&self, a: &str, b: &str) -> Result<Vec<String>, GitError> {
-        let o = self.run(Cmd::new(["diff-tree", "-r", "-z", "--numstat", "-M", "--no-commit-id", a, b]))?;
+        let o = self.run(Cmd::new([
+            "diff-tree",
+            "-r",
+            "-z",
+            "--numstat",
+            "-M",
+            "--no-commit-id",
+            a,
+            b,
+        ]))?;
         let mut bins = Vec::new();
         let recs: Vec<String> = o.stdout.split(|x| *x == 0).map(utf8).collect();
         let mut i = 0;
@@ -541,7 +560,11 @@ impl Repo {
     }
 
     /// Records the on-disk state of `paths` in `index`: existing files are added, missing ones removed.
-    pub fn update_index_paths(&self, index: Option<&Path>, paths: &[String]) -> Result<(), GitError> {
+    pub fn update_index_paths(
+        &self,
+        index: Option<&Path>,
+        paths: &[String],
+    ) -> Result<(), GitError> {
         if paths.is_empty() {
             return Ok(());
         }
@@ -570,7 +593,9 @@ impl Repo {
         let mut input = Vec::new();
         for e in entries {
             match &e.mode_oid {
-                Some((mode, oid)) => input.extend_from_slice(format!("{mode} {oid}\t{}", e.path).as_bytes()),
+                Some((mode, oid)) => {
+                    input.extend_from_slice(format!("{mode} {oid}\t{}", e.path).as_bytes())
+                }
                 None => input.extend_from_slice(format!("0 {zero}\t{}", e.path).as_bytes()),
             }
             input.push(0);
@@ -607,11 +632,24 @@ impl Repo {
     // ---- merge-tree ---------------------------------------------------------------------
 
     /// Three-way merge of two commits without touching any working directory (`git merge-tree --write-tree`).
-    pub fn merge_tree(&self, base: &str, side1: &str, side2: &str) -> Result<MergeTreeResult, GitError> {
+    pub fn merge_tree(
+        &self,
+        base: &str,
+        side1: &str,
+        side2: &str,
+    ) -> Result<MergeTreeResult, GitError> {
         let mb = format!("--merge-base={base}");
         let o = self.run(
-            Cmd::new(["merge-tree", "--write-tree", "-z", "--name-only", &mb, side1, side2])
-                .ok_codes(&[1]),
+            Cmd::new([
+                "merge-tree",
+                "--write-tree",
+                "-z",
+                "--name-only",
+                &mb,
+                side1,
+                side2,
+            ])
+            .ok_codes(&[1]),
         )?;
         parse_merge_tree(&o.stdout, o.code == 0)
     }
@@ -668,7 +706,11 @@ impl Repo {
     /// Reads a repository config value.
     pub fn config_get(&self, key: &str) -> Result<Option<String>, GitError> {
         let o = self.run(Cmd::new(["config", "--get", key]).ok_codes(&[1]))?;
-        Ok(if o.code == 0 { Some(o.stdout_trimmed()) } else { None })
+        Ok(if o.code == 0 {
+            Some(o.stdout_trimmed())
+        } else {
+            None
+        })
     }
 
     /// Writes a repository config value.
@@ -894,7 +936,8 @@ mod tests {
 
     #[test]
     fn parses_ls_tree_long() {
-        let raw = b"100644 blob 3b18e512dba79e4c8300dd08aeb37f8e728b8dad    1234\tdir/file name.ork\0";
+        let raw =
+            b"100644 blob 3b18e512dba79e4c8300dd08aeb37f8e728b8dad    1234\tdir/file name.ork\0";
         let v = parse_ls_tree(raw).unwrap();
         assert_eq!(v[0].size, Some(1234));
         assert_eq!(v[0].path, "dir/file name.ork");

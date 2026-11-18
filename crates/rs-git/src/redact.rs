@@ -16,10 +16,8 @@ fn rules() -> &'static Rules {
     RULES.get_or_init(|| Rules {
         // https://user:password@host  /  https://token@host
         userinfo: Regex::new(r"(?i)\b([a-z][a-z0-9+.\-]*://)[^/\s@]+@").expect("static regex"),
-        gh_tokens: Regex::new(
-            r"\b(?:gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,})\b",
-        )
-        .expect("static regex"),
+        gh_tokens: Regex::new(r"\b(?:gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,})\b")
+            .expect("static regex"),
         auth_header: Regex::new(r"(?i)(authorization:\s*(?:bearer|basic|token)\s+)\S+")
             .expect("static regex"),
         access_token: Regex::new(r"(?i)(x-access-token:)[^@\s]+").expect("static regex"),
@@ -52,7 +50,10 @@ mod tests {
             redact("fatal: unable to access 'https://x-access-token:abc123@github.com/o/r.git/'"),
             "fatal: unable to access 'https://***@github.com/o/r.git/'"
         );
-        assert_eq!(redact("https://ghp_abcdefghijklmnopqrstuvwxyz0123@github.com/o/r"), "https://***@github.com/o/r");
+        assert_eq!(
+            redact("https://ghp_abcdefghijklmnopqrstuvwxyz0123@github.com/o/r"),
+            "https://***@github.com/o/r"
+        );
     }
 
     #[test]

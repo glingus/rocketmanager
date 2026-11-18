@@ -22,7 +22,7 @@ type AppError = {
 type ErrorCode =
   | 'network' | 'authRequired' | 'authFailed' | 'notLinked' | 'folderNotEmpty' | 'folderInSyncedDrive'
   | 'fileNotStable' | 'fileInvalid' | 'fileTooLarge' | 'blockedByEditor' | 'conflictOpen'
-  | 'localChangesPresent' | 'nonFastForward' | 'lockHeld' | 'notFound' | 'invalidPath'
+  | 'localChangesPresent' | 'staleSavePending' | 'nonFastForward' | 'lockHeld' | 'notFound' | 'invalidPath'
   | 'gitMissing' | 'internal';
 
 type SyncState =
@@ -277,6 +277,7 @@ type FolderCheck = {
 | `update_now` | `{ projectId, force? }` | `ProjectStatus` |
 | `discard_changes` | `{ projectId, paths }` | `ProjectStatus` |
 | `answer_stale_save` | `{ projectId, path, reopened: boolean }` | `ProjectStatus` |
+| `notify_remote_changed` | `{ projectId }` | `void` (l'interfaccia ha ricevuto in tempo reale una nuova versione: fetch immediato) |
 | `get_publish_policy` | `{ projectId }` | `PublishPolicy` |
 | `set_publish_policy` | `{ projectId, policy }` | `void` |
 

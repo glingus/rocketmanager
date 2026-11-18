@@ -5,8 +5,8 @@ use super::snapshot::TempIndex;
 use super::*;
 use crate::message::VersionMessage;
 use crate::types::{
-    ChangelogGroup, Conflict, ConflictFile, ConflictFileKind, ConflictSide, ConflictStatusDto, FileResolution,
-    ResolutionChoice, VersionKind,
+    ChangelogGroup, Conflict, ConflictFile, ConflictFileKind, ConflictSide, ConflictStatusDto,
+    FileResolution, ResolutionChoice, VersionKind,
 };
 use crate::util::{self, atomic_write, iso_from_ms};
 use rs_git::{CommitSpec, IndexInfoEntry, Signature};
@@ -66,11 +66,18 @@ impl ProjectInner {
     }
 
     /// Content of one side of a conflicting file (`None` if the side does not have the file).
-    pub(crate) fn conflict_side_bytes(&self, id: &str, path: &str, side: ConflictSide) -> Result<Option<Vec<u8>>> {
+    pub(crate) fn conflict_side_bytes(
+        &self,
+        id: &str,
+        path: &str,
+        side: ConflictSide,
+    ) -> Result<Option<Vec<u8>>> {
         util::validate_rel_path(path)?;
         let rec = self.conflict_record(id)?;
         if !rec.files.iter().any(|f| f.path == path) {
-            return Err(CoreError::NotFound(format!("file {path} nel conflitto {id}")));
+            return Err(CoreError::NotFound(format!(
+                "file {path} nel conflitto {id}"
+            )));
         }
         let commit = match side {
             ConflictSide::Base => &rec.base_sha,
@@ -84,10 +91,15 @@ impl ProjectInner {
     }
 
     /// Writes one side of a conflicting file in `.rocketsync/local/conflitti/<id>/` and returns the path.
-    pub(crate) fn export_conflict_copy(&self, id: &str, path: &str, side: ConflictSide) -> Result<PathBuf> {
-        let bytes = self
-            .conflict_side_bytes(id, path, side)?
-            .ok_or_else(|| CoreError::NotFound(format!("il file {path} non esiste in questa versione")))?;
+    pub(crate) fn export_conflict_copy(
+        &self,
+        id: &str,
+        path: &str,
+        side: ConflictSide,
+    ) -> Result<PathBuf> {
+        let bytes = self.conflict_side_bytes(id, path, side)?.ok_or_else(|| {
+            CoreError::NotFound(format!("il file {path} non esiste in questa versione"))
+        })?;
         let label = match side {
             ConflictSide::Base => "versione di partenza",
             ConflictSide::Ours => "la mia versione",
@@ -140,7 +152,11 @@ impl ProjectInner {
     }
 
     /// Resolves a conflict with one choice per file, creating the merge commit (`§7.5.6`).
-    pub(crate) fn resolve_conflict(&self, id: &str, resolutions: &[FileResolution]) -> Result<ProjectStatus> {
+    pub(crate) fn resolve_conflict(
+        &self,
+        id: &str,
+        resolutions: &[FileResolution],
+    ) -> Result<ProjectStatus> {
         self.run_op(
             "resolve",
             Busy::Publishing,
@@ -154,7 +170,9 @@ impl ProjectInner {
         let identity = self.shared.identity()?;
         let mut rec = self.conflict_record(id)?;
         if rec.status != ConflictStatus::Open {
-            return Err(CoreError::InvalidArgument("il conflitto è già stato risolto".into()));
+            return Err(CoreError::InvalidArgument(
+                "il conflitto è già stato risolto".into(),
+            ));
         }
         let mut choices: HashMap<&str, ResolutionChoice> = HashMap::new();
         for r in resolutions {
@@ -165,7 +183,10 @@ impl ProjectInner {
         }
         for f in &rec.files {
             if !choices.contains_key(f.path.as_str()) {
-                return Err(CoreError::InvalidArgument(format!("manca la scelta per «{}»", f.path)));
+                return Err(CoreError::InvalidArgument(format!(
+                    "manca la scelta per «{}»",
+                    f.path
+                )));
             }
         }
 
@@ -181,7 +202,9 @@ impl ProjectInner {
             ));
         }
 
-        let merged = self.repo.merge_tree(&rec.base_sha, &rec.ours_sha, &first_parent)?;
+        let merged = self
+            .repo
+            .merge_tree(&rec.base_sha, &rec.ours_sha, &first_parent)?;
         let ours_map = self.repo.tree_map(&rec.ours_sha)?;
         let theirs_map = self.repo.tree_map(&first_parent)?;
         let merged_map = self.repo.tree_map(&merged.tree)?;
@@ -388,19 +411,28 @@ impl ProjectInner {
             );
             vm.changelog = vec![ChangelogGroup {
                 path: path.to_string(),
-                lines: vec!["Salvato mentre OpenRocket aveva aperta una versione precedente".into()],
+                lines: vec![
+                    "Salvato mentre OpenRocket aveva aperta una versione precedente".into(),
+                ],
                 interpreted: true,
             }];
             let ours = self.repo.commit_tree(&CommitSpec {
                 tree: &tree,
-                parents: &[base.clone()],
+                parents: std::slice::from_ref(&base),
                 message: &vm.render(),
                 author: &sig,
                 committer: &sig,
             })?;
             let theirs = self.head()?;
             self.safety_snapshot("salvataggio-sospetto")?;
-            self.create_conflict_record(op, &base, &ours, &theirs, &[path.to_string()], "stale-save")?;
+            self.create_conflict_record(
+                op,
+                &base,
+                &ours,
+                &theirs,
+                &[path.to_string()],
+                "stale-save",
+            )?;
             self.shared.store.delete_watch(&self.id, path)?;
             Ok(())
         })?;

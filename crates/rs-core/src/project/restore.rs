@@ -12,7 +12,11 @@ use serde_json::json;
 use std::collections::HashSet;
 
 impl ProjectInner {
-    pub(crate) fn restore_version(&self, sha: &str, paths: Option<&[String]>) -> Result<ProjectStatus> {
+    pub(crate) fn restore_version(
+        &self,
+        sha: &str,
+        paths: Option<&[String]>,
+    ) -> Result<ProjectStatus> {
         self.run_op(
             "restore",
             Busy::Publishing,
@@ -47,9 +51,11 @@ impl ProjectInner {
         // The project must be up to date first.
         self.fetch_remote()?;
         match self.integrate(op, false)? {
-            IntegrateOutcome::Conflict(_) | IntegrateOutcome::ConflictOpen => return Err(CoreError::ConflictOpen),
+            IntegrateOutcome::Conflict(_) | IntegrateOutcome::ConflictOpen => {
+                return Err(CoreError::ConflictOpen)
+            }
             IntegrateOutcome::Blocked(f) => return Err(CoreError::BlockedByEditor(f)),
-            IntegrateOutcome::Updated { .. } | IntegrateOutcome::UpToDate => {}
+            IntegrateOutcome::Updated | IntegrateOutcome::UpToDate => {}
         }
 
         let head = self.head()?;
@@ -122,14 +128,18 @@ impl ProjectInner {
                 Some(e) => Some(self.repo.cat_blob(&e.oid)?),
                 None => None,
             };
-            let mut lines = self
-                .shared
-                .config
-                .inspector
-                .changelog(p, before.as_deref(), after.as_deref());
+            let mut lines =
+                self.shared
+                    .config
+                    .inspector
+                    .changelog(p, before.as_deref(), after.as_deref());
             lines.retain(|l| !l.trim().is_empty());
             if lines.is_empty() {
-                lines = crate::hooks::DefaultInspector.changelog(p, before.as_deref(), after.as_deref());
+                lines = crate::hooks::DefaultInspector.changelog(
+                    p,
+                    before.as_deref(),
+                    after.as_deref(),
+                );
             }
             groups.push(ChangelogGroup {
                 path: p.clone(),
@@ -142,7 +152,11 @@ impl ProjectInner {
             Some(ps) if ps.len() == 1 => format!("Ripristinato {} dalla versione {number}", ps[0]),
             Some(ps) => format!("Ripristinati {} file dalla versione {number}", ps.len()),
         };
-        let mut vm = VersionMessage::new(VersionKind::Restore, title, &self.shared.config.client_version);
+        let mut vm = VersionMessage::new(
+            VersionKind::Restore,
+            title,
+            &self.shared.config.client_version,
+        );
         vm.changelog = groups;
         vm.restored_from = Some(number);
         if let Some(ps) = paths {
@@ -151,7 +165,7 @@ impl ProjectInner {
         let sig = Signature::now(identity.name, identity.email);
         let commit = self.repo.commit_tree(&CommitSpec {
             tree: &new_tree,
-            parents: &[head.clone()],
+            parents: std::slice::from_ref(&head),
             message: &vm.render(),
             author: &sig,
             committer: &sig,

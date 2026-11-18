@@ -113,7 +113,9 @@ impl CoreError {
                 GitErrorKind::AuthFailed => ErrorCode::AuthFailed,
                 GitErrorKind::NonFastForward => ErrorCode::NonFastForward,
                 GitErrorKind::LockHeld => ErrorCode::LockHeld,
-                GitErrorKind::GitMissing | GitErrorKind::UnsupportedVersion => ErrorCode::GitMissing,
+                GitErrorKind::GitMissing | GitErrorKind::UnsupportedVersion => {
+                    ErrorCode::GitMissing
+                }
                 _ => ErrorCode::Internal,
             },
             CoreError::NotLinked(_) => ErrorCode::NotLinked,
@@ -141,7 +143,10 @@ impl CoreError {
         match self {
             CoreError::Git(g) => matches!(
                 g.kind(),
-                GitErrorKind::Network | GitErrorKind::Timeout | GitErrorKind::LockHeld | GitErrorKind::NonFastForward
+                GitErrorKind::Network
+                    | GitErrorKind::Timeout
+                    | GitErrorKind::LockHeld
+                    | GitErrorKind::NonFastForward
             ),
             CoreError::FileNotStable(_) | CoreError::BlockedByEditor(_) => true,
             _ => false,
@@ -269,6 +274,13 @@ mod tests {
             serde_json::to_value(ErrorCode::LocalChangesPresent).unwrap(),
             "localChangesPresent"
         );
-        assert_eq!(CoreError::FileInvalid { path: "a".into(), reason: "r".into() }.code(), ErrorCode::FileInvalid);
+        assert_eq!(
+            CoreError::FileInvalid {
+                path: "a".into(),
+                reason: "r".into()
+            }
+            .code(),
+            ErrorCode::FileInvalid
+        );
     }
 }

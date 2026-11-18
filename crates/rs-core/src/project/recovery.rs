@@ -40,11 +40,20 @@ impl ProjectInner {
     }
 
     /// Records a recovery action that has no journal entry of its own.
-    fn record_recovery(&self, kind: &str, summary: &str, out: &mut Vec<RecoveryReport>) -> Result<()> {
+    fn record_recovery(
+        &self,
+        kind: &str,
+        summary: &str,
+        out: &mut Vec<RecoveryReport>,
+    ) -> Result<()> {
         let op_id = format!("rec-{}-{}", rs_store::now_ms(), crate::util::random_id(5));
-        self.shared
-            .store
-            .journal_begin(&op_id, &self.id, kind, "recovery", &serde_json::json!({}))?;
+        self.shared.store.journal_begin(
+            &op_id,
+            &self.id,
+            kind,
+            "recovery",
+            &serde_json::json!({}),
+        )?;
         self.shared
             .store
             .journal_finish(&op_id, "recovered", Some(summary))?;
@@ -76,7 +85,10 @@ impl ProjectInner {
         }
         if let Ok(rd) = std::fs::read_dir(&git_dir) {
             for e in rd.flatten() {
-                if e.file_name().to_string_lossy().starts_with("rocketsync-index-") {
+                if e.file_name()
+                    .to_string_lossy()
+                    .starts_with("rocketsync-index-")
+                {
                     let _ = std::fs::remove_file(e.path());
                 }
             }
@@ -84,7 +96,10 @@ impl ProjectInner {
         if !removed.is_empty() {
             self.record_recovery(
                 "recovery-lock",
-                &format!("Rimossi blocchi di Git rimasti da un arresto precedente ({}).", removed.join(", ")),
+                &format!(
+                    "Rimossi blocchi di Git rimasti da un arresto precedente ({}).",
+                    removed.join(", ")
+                ),
                 &mut reports,
             )?;
         }
@@ -158,17 +173,29 @@ impl ProjectInner {
     }
 
     fn recover_materializing(&self, e: &JournalEntry) -> Result<String> {
-        let get = |k: &str| e.payload.get(k).and_then(|v| v.as_str()).map(str::to_string);
-        let (Some(old_head), Some(new_head), Some(from_tree), Some(to_tree)) =
-            (get("oldHead"), get("newHead"), get("fromTree"), get("toTree"))
-        else {
+        let get = |k: &str| {
+            e.payload
+                .get(k)
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        };
+        let (Some(old_head), Some(new_head), Some(from_tree), Some(to_tree)) = (
+            get("oldHead"),
+            get("newHead"),
+            get("fromTree"),
+            get("toTree"),
+        ) else {
             return Ok("Aggiornamento interrotto: dati del journal incompleti, nessun file modificato dal recupero.".into());
         };
         let allow: HashSet<String> = e
             .payload
             .get("allowDirty")
             .and_then(|v| v.as_array())
-            .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(str::to_string))
+                    .collect()
+            })
             .unwrap_or_default();
         let head = self.head()?;
         let outcome = if head == new_head {

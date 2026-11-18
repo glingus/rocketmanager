@@ -136,7 +136,9 @@ impl Engine {
         };
         for rec in shared.store.list_projects()? {
             let handle = engine.build_handle(&rec);
-            engine.projects_lock().insert(rec.project_id.clone(), handle);
+            engine
+                .projects_lock()
+                .insert(rec.project_id.clone(), handle);
         }
         Ok(engine)
     }
@@ -166,7 +168,10 @@ impl Engine {
             all.extend(reports);
             self.activate(&h);
         }
-        let _ = self.shared.store.journal_prune(now_ms() - 14 * 24 * 3600 * 1000);
+        let _ = self
+            .shared
+            .store
+            .journal_prune(now_ms() - 14 * 24 * 3600 * 1000);
         self.started.store(true, Ordering::SeqCst);
         if let Ok(mut g) = self.startup_reports.lock() {
             g.extend(all.iter().cloned());
@@ -221,7 +226,9 @@ impl Engine {
                         *g = Some(w);
                     }
                 }
-                Err(e) => tracing::warn!(project = %h.inner.id, error = %e, "file watcher not started"),
+                Err(e) => {
+                    tracing::warn!(project = %h.inner.id, error = %e, "file watcher not started")
+                }
             }
         }
         let tx = h.tx.clone();
@@ -289,12 +296,16 @@ impl Engine {
 
     /// What the startup recovery did.
     pub fn startup_reports(&self) -> Vec<RecoveryReport> {
-        self.startup_reports.lock().map(|g| g.clone()).unwrap_or_default()
+        self.startup_reports
+            .lock()
+            .map(|g| g.clone())
+            .unwrap_or_default()
     }
 
     /// Stops the background loops and cancels running git commands.
     pub async fn shutdown(&self) {
-        let handles: Vec<Arc<ProjectHandle>> = self.projects_lock().drain().map(|(_, h)| h).collect();
+        let handles: Vec<Arc<ProjectHandle>> =
+            self.projects_lock().drain().map(|(_, h)| h).collect();
         for h in handles {
             if let Ok(mut t) = h.ticker.lock() {
                 if let Some(t) = t.take() {
@@ -334,7 +345,9 @@ impl Engine {
     /// Clones (or adopts) the remote into the folder and starts managing it (`§7.1`).
     pub async fn link_project(&self, req: LinkRequest) -> Result<ProjectStatus> {
         if self.projects_lock().contains_key(&req.project_id) {
-            return Err(CoreError::InvalidArgument("il progetto è già collegato".into()));
+            return Err(CoreError::InvalidArgument(
+                "il progetto è già collegato".into(),
+            ));
         }
         let shared = self.shared.clone();
         let req2 = req.clone();
@@ -364,7 +377,8 @@ impl Engine {
         };
         self.shared.store.upsert_project(&rec)?;
         let handle = self.build_handle(&rec);
-        self.projects_lock().insert(rec.project_id.clone(), handle.clone());
+        self.projects_lock()
+            .insert(rec.project_id.clone(), handle.clone());
         self.activate(&handle);
         handle.run(|i| Ok(status_or_error(i))).await
     }
@@ -383,7 +397,13 @@ impl Engine {
     /// Current status. While an operation is running the last known status is returned.
     pub async fn status(&self, project_id: &str) -> Result<ProjectStatus> {
         let h = self.handle(project_id)?;
-        let busy_status = h.inner.rt(|r| if r.busy.is_some() { r.last_status.clone() } else { None });
+        let busy_status = h.inner.rt(|r| {
+            if r.busy.is_some() {
+                r.last_status.clone()
+            } else {
+                None
+            }
+        });
         if let Some(mut s) = busy_status {
             s.state = match h.inner.rt(|r| r.busy) {
                 Some(project::Busy::Publishing) => SyncState::Publishing,
@@ -417,16 +437,29 @@ impl Engine {
     /// Fetch and update. With `force` the update is applied even if OpenRocket may have the files open
     /// (the stale-editor guard is armed).
     pub async fn update_now(&self, project_id: &str, force: bool) -> Result<ProjectStatus> {
-        self.handle(project_id)?.run(move |i| i.update_now(force)).await
+        self.handle(project_id)?
+            .run(move |i| i.update_now(force))
+            .await
     }
 
     /// Discards the local changes of `paths` after a safety copy.
-    pub async fn discard_changes(&self, project_id: &str, paths: Vec<String>) -> Result<ProjectStatus> {
-        self.handle(project_id)?.run(move |i| i.discard_changes(&paths)).await
+    pub async fn discard_changes(
+        &self,
+        project_id: &str,
+        paths: Vec<String>,
+    ) -> Result<ProjectStatus> {
+        self.handle(project_id)?
+            .run(move |i| i.discard_changes(&paths))
+            .await
     }
 
     /// Answer to a suspected stale save: `reopened = true` means "I reopened the file before editing it".
-    pub async fn answer_stale_save(&self, project_id: &str, path: String, reopened: bool) -> Result<ProjectStatus> {
+    pub async fn answer_stale_save(
+        &self,
+        project_id: &str,
+        path: String,
+        reopened: bool,
+    ) -> Result<ProjectStatus> {
         self.handle(project_id)?
             .run(move |i| i.answer_stale_save(&path, reopened))
             .await
@@ -462,19 +495,33 @@ impl Engine {
     }
 
     pub async fn get_version(&self, project_id: &str, sha: String) -> Result<VersionInfo> {
-        self.handle(project_id)?.run(move |i| i.get_version(&sha)).await
+        self.handle(project_id)?
+            .run(move |i| i.get_version(&sha))
+            .await
     }
 
     /// File-level comparison of two versions (with the bytes of both parts).
-    pub async fn compare_versions(&self, project_id: &str, from_sha: String, to_sha: String) -> Result<Comparison> {
+    pub async fn compare_versions(
+        &self,
+        project_id: &str,
+        from_sha: String,
+        to_sha: String,
+    ) -> Result<Comparison> {
         self.handle(project_id)?
             .run(move |i| i.compare_versions(&from_sha, &to_sha))
             .await
     }
 
     /// Content of a file in a version.
-    pub async fn read_file_at(&self, project_id: &str, sha: String, path: String) -> Result<Option<Vec<u8>>> {
-        self.handle(project_id)?.run(move |i| i.read_file_at(&sha, &path)).await
+    pub async fn read_file_at(
+        &self,
+        project_id: &str,
+        sha: String,
+        path: String,
+    ) -> Result<Option<Vec<u8>>> {
+        self.handle(project_id)?
+            .run(move |i| i.read_file_at(&sha, &path))
+            .await
     }
 
     /// Writes the files of a version into `dest_dir` without touching the working folder.
@@ -491,7 +538,12 @@ impl Engine {
     }
 
     /// Temporary copy of one file of a version (to open in OpenRocket).
-    pub async fn export_version_copy(&self, project_id: &str, sha: String, path: String) -> Result<PathBuf> {
+    pub async fn export_version_copy(
+        &self,
+        project_id: &str,
+        sha: String,
+        path: String,
+    ) -> Result<PathBuf> {
         self.handle(project_id)?
             .run(move |i| i.export_version_copy(&sha, &path))
             .await
@@ -511,14 +563,20 @@ impl Engine {
 
     // ---- conflicts and safety copies ----------------------------------------------------
 
-    pub async fn list_conflicts(&self, project_id: &str, include_resolved: bool) -> Result<Vec<Conflict>> {
+    pub async fn list_conflicts(
+        &self,
+        project_id: &str,
+        include_resolved: bool,
+    ) -> Result<Vec<Conflict>> {
         self.handle(project_id)?
             .run(move |i| i.list_conflicts(include_resolved))
             .await
     }
 
     pub async fn get_conflict(&self, project_id: &str, conflict_id: String) -> Result<Conflict> {
-        self.handle(project_id)?.run(move |i| i.get_conflict(&conflict_id)).await
+        self.handle(project_id)?
+            .run(move |i| i.get_conflict(&conflict_id))
+            .await
     }
 
     /// Bytes of one side of a conflicting file (for the semantic three-way diff of the shell).
@@ -563,7 +621,12 @@ impl Engine {
         self.handle(project_id)?.run(|i| i.list_snapshots()).await
     }
 
-    pub async fn export_snapshot(&self, project_id: &str, snapshot_id: String, dest_dir: PathBuf) -> Result<Vec<String>> {
+    pub async fn export_snapshot(
+        &self,
+        project_id: &str,
+        snapshot_id: String,
+        dest_dir: PathBuf,
+    ) -> Result<Vec<String>> {
         self.handle(project_id)?
             .run(move |i| i.export_snapshot(&snapshot_id, &dest_dir))
             .await

@@ -3,16 +3,16 @@
 //! `EditorDetector` and a `FileInspector` that rejects `.ork` files that are not complete ZIPs.
 #![allow(dead_code)]
 
+use rs_core::RetryPolicy;
 use rs_core::{
-    CoreError, Engine, EngineConfig, EditorDetector, EditorState, FileInspector, Identity, LinkRequest, ProjectStatus,
-    PublishRequest, SyncState, Timing,
+    CoreError, EditorDetector, EditorState, Engine, EngineConfig, FileInspector, Identity,
+    LinkRequest, ProjectStatus, PublishRequest, SyncState, Timing,
 };
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use rs_core::RetryPolicy;
 use tempfile::TempDir;
 
 pub const PROJECT: &str = "proj-1";
@@ -104,18 +104,24 @@ impl Remote {
     }
 
     pub fn branches(&self) -> Vec<String> {
-        git(&self.path, &["for-each-ref", "--format=%(refname:short)", "refs/heads"])
-            .lines()
-            .map(str::to_string)
-            .collect()
+        git(
+            &self.path,
+            &["for-each-ref", "--format=%(refname:short)", "refs/heads"],
+        )
+        .lines()
+        .map(str::to_string)
+        .collect()
     }
 
     /// First-parent subjects, newest first.
     pub fn log_subjects(&self) -> Vec<String> {
-        git(&self.path, &["log", "--first-parent", "--format=%s", "refs/heads/main"])
-            .lines()
-            .map(str::to_string)
-            .collect()
+        git(
+            &self.path,
+            &["log", "--first-parent", "--format=%s", "refs/heads/main"],
+        )
+        .lines()
+        .map(str::to_string)
+        .collect()
     }
 
     /// Simulates a network outage by moving the repository away.
@@ -191,7 +197,9 @@ impl FileInspector for ZipInspector {
         let mut z = zip::ZipArchive::new(Cursor::new(bytes))
             .map_err(|e| format!("archivio ZIP incompleto o danneggiato ({e})"))?;
         for i in 0..z.len() {
-            let mut f = z.by_index(i).map_err(|e| format!("voce {i} non leggibile ({e})"))?;
+            let mut f = z
+                .by_index(i)
+                .map_err(|e| format!("voce {i} non leggibile ({e})"))?;
             let mut sink = Vec::new();
             f.read_to_end(&mut sink)
                 .map_err(|e| format!("voce {i} non leggibile ({e})"))?;
@@ -223,7 +231,9 @@ impl MockDetector {
         self.set(EditorState::NotRunning);
     }
     pub fn running_with(&self, files: Vec<PathBuf>) {
-        self.set(EditorState::Running { open_files: Some(files) });
+        self.set(EditorState::Running {
+            open_files: Some(files),
+        });
     }
     pub fn running_unknown(&self) {
         self.set(EditorState::Running { open_files: None });
@@ -232,7 +242,11 @@ impl MockDetector {
 
 impl EditorDetector for MockDetector {
     fn state(&self, _root: &Path) -> EditorState {
-        self.state.lock().unwrap().clone().unwrap_or(EditorState::NotRunning)
+        self.state
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap_or(EditorState::NotRunning)
     }
 }
 
@@ -260,7 +274,6 @@ pub fn test_config(data_dir: &Path, detector: Arc<MockDetector>) -> EngineConfig
     cfg.client_version = "0.0.0-test".into();
     cfg
 }
-
 
 impl User {
     /// A user with an engine that is *not* linked to any project yet.
@@ -342,7 +355,11 @@ impl User {
             .await
     }
 
-    pub async fn publish_paths(&self, title: &str, paths: &[&str]) -> Result<ProjectStatus, CoreError> {
+    pub async fn publish_paths(
+        &self,
+        title: &str,
+        paths: &[&str],
+    ) -> Result<ProjectStatus, CoreError> {
         self.engine
             .publish(
                 PROJECT,
@@ -370,7 +387,11 @@ impl User {
 
     pub fn assert_clean(&self) {
         let st = self.git(&["status", "--porcelain"]);
-        assert!(st.is_empty(), "git status not clean for {}: {st}", self.name);
+        assert!(
+            st.is_empty(),
+            "git status not clean for {}: {st}",
+            self.name
+        );
     }
 }
 
@@ -403,10 +424,15 @@ pub fn assert_no_forbidden_commands(engine: &Engine) {
     for r in &log {
         let line = r.command_line();
         for bad in ["--force", "--force-with-lease", "--hard", "--mirror"] {
-            assert!(!r.args.iter().any(|a| a == bad), "forbidden option {bad} in: {line}");
+            assert!(
+                !r.args.iter().any(|a| a == bad),
+                "forbidden option {bad} in: {line}"
+            );
         }
         assert!(
-            !r.args.iter().any(|a| a == "-f" || a.starts_with("+refs/") || a.starts_with('+')),
+            !r.args
+                .iter()
+                .any(|a| a == "-f" || a.starts_with("+refs/") || a.starts_with('+')),
             "forced refspec/option in: {line}"
         );
         let sub = r
@@ -415,7 +441,19 @@ pub fn assert_no_forbidden_commands(engine: &Engine) {
             .find(|a| !a.starts_with('-') && !a.contains('='))
             .map(String::as_str)
             .unwrap_or("");
-        for bad in ["merge", "rebase", "stash", "reset", "checkout", "switch", "restore", "pull", "cherry-pick", "revert", "clean"] {
+        for bad in [
+            "merge",
+            "rebase",
+            "stash",
+            "reset",
+            "checkout",
+            "switch",
+            "restore",
+            "pull",
+            "cherry-pick",
+            "revert",
+            "clean",
+        ] {
             assert!(sub != bad, "forbidden subcommand {bad}: {line}");
         }
     }
@@ -425,7 +463,9 @@ impl User {
     /// Simulates quitting (or crashing) and starting the app again on the same data and folder.
     pub async fn restart(self) -> User {
         self.engine.shutdown().await;
-        let engine = Engine::new(test_config(&self.data_dir, self.detector.clone())).await.unwrap();
+        let engine = Engine::new(test_config(&self.data_dir, self.detector.clone()))
+            .await
+            .unwrap();
         engine.set_identity(Some(Identity {
             name: self.name.clone(),
             email: format!("1+{}@users.noreply.github.com", self.name.to_lowercase()),
@@ -446,7 +486,11 @@ impl User {
     }
 
     /// Waits (up to `secs`) until `f` is true, polling the status.
-    pub async fn wait_status(&self, secs: u64, f: impl Fn(&ProjectStatus) -> bool) -> ProjectStatus {
+    pub async fn wait_status(
+        &self,
+        secs: u64,
+        f: impl Fn(&ProjectStatus) -> bool,
+    ) -> ProjectStatus {
         let end = std::time::Instant::now() + Duration::from_secs(secs);
         loop {
             let st = self.status().await;
@@ -470,7 +514,12 @@ pub fn git_bytes(cwd: &Path, args: &[&str]) -> Vec<u8> {
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .output()
         .expect("git");
-    assert!(out.status.success(), "git {:?}: {}", args, String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "git {:?}: {}",
+        args,
+        String::from_utf8_lossy(&out.stderr)
+    );
     out.stdout
 }
 

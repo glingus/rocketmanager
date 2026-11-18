@@ -13,11 +13,7 @@ use std::collections::HashSet;
 #[derive(Debug)]
 pub(crate) enum IntegrateOutcome {
     UpToDate,
-    Updated {
-        from_version: Option<i64>,
-        to_version: Option<i64>,
-        files: Vec<String>,
-    },
+    Updated,
     Conflict(String),
     Blocked(Vec<String>),
     ConflictOpen,
@@ -31,7 +27,9 @@ pub(crate) struct SentVersion {
     pub conflict_id: Option<String>,
 }
 
+/// Result of a sending attempt; the payloads are kept for diagnostics (`Debug`).
 #[derive(Debug)]
+#[allow(dead_code)]
 pub(crate) enum SendOutcome {
     NothingToSend,
     Sent(Vec<SentVersion>),
@@ -53,7 +51,10 @@ impl ProjectInner {
     pub(crate) fn fetch_remote(&self) -> Result<()> {
         let res = self.repo.fetch(
             "origin",
-            &["refs/heads/main:refs/remotes/origin/main", "refs/tags/*:refs/tags/*"],
+            &[
+                "refs/heads/main:refs/remotes/origin/main",
+                "refs/tags/*:refs/tags/*",
+            ],
         );
         match res {
             Ok(()) => {
@@ -62,7 +63,10 @@ impl ProjectInner {
                     r.offline = false;
                     r.last_fetch_at = Some(now);
                 });
-                let _ = self.shared.store.set_setting(&self.id, "lastFetchAt", &now.to_string());
+                let _ = self
+                    .shared
+                    .store
+                    .set_setting(&self.id, "lastFetchAt", &now.to_string());
                 Ok(())
             }
             Err(e) => {
@@ -120,7 +124,9 @@ impl ProjectInner {
         for p in pending {
             let info = self.repo.commit_info(p)?;
             let Some(base) = info.parents.first().cloned() else {
-                return Err(CoreError::Internal(format!("la versione {p} non ha un genitore")));
+                return Err(CoreError::Internal(format!(
+                    "la versione {p} non ha un genitore"
+                )));
             };
             let m = self.repo.merge_tree(&base, &tip, p)?;
             if !m.clean {
@@ -183,7 +189,11 @@ impl ProjectInner {
         conflicted: &[String],
         origin_kind: &str,
     ) -> Result<String> {
-        let id = format!("{}-{}", crate::util::today_compact(), crate::util::random_id(6));
+        let id = format!(
+            "{}-{}",
+            crate::util::today_compact(),
+            crate::util::random_id(6)
+        );
         let base_map = self.repo.tree_map(base)?;
         let ours_map = self.repo.tree_map(ours)?;
         let theirs_map = self.repo.tree_map(theirs)?;
@@ -262,6 +272,36 @@ impl ProjectInner {
         }
     }
 
+    /// Local changes, after waiting (bounded) for the files that overlap `incoming` to settle: a file
+    /// that is still being saved must not be mistaken for "no local change" and then overwritten.
+    fn local_changes_settled(&self, incoming: &HashSet<String>) -> Result<Vec<LocalChange>> {
+        let timing = self.shared.config.timing.clone();
+        let deadline = Instant::now() + timing.stability_wait;
+        loop {
+            let changes = self.local_changes()?;
+            let mut pending: Vec<String> = changes
+                .iter()
+                .filter(|c| {
+                    incoming.contains(&c.path)
+                        && (!c.stable || (c.valid.is_none() && c.change != FileChangeKind::Deleted))
+                })
+                .map(|c| c.path.clone())
+                .collect();
+            if pending.is_empty() {
+                return Ok(changes);
+            }
+            if Instant::now() >= deadline {
+                pending.sort();
+                return Err(CoreError::FileNotStable(pending));
+            }
+            std::thread::sleep(
+                timing
+                    .stability_gap
+                    .min(std::time::Duration::from_millis(250)),
+            );
+        }
+    }
+
     /// Brings the local line up to date with `origin/main` (§7.3): overlap check → conflict,
     /// otherwise the pending versions are replayed on `origin/main` and the files are materialised.
     pub(crate) fn integrate(&self, op: &OpCtx, force: bool) -> Result<IntegrateOutcome> {
@@ -275,11 +315,19 @@ impl ProjectInner {
         if self.has_open_conflict()? {
             return Ok(IntegrateOutcome::ConflictOpen);
         }
-        let base = self
-            .repo
-            .merge_base(&head, &origin)?
-            .ok_or_else(|| CoreError::Internal("storie non collegate tra locale e server".into()))?;
-        let changes = self.local_changes()?;
+        let base = self.repo.merge_base(&head, &origin)?.ok_or_else(|| {
+            CoreError::Internal("storie non collegate tra locale e server".into())
+        })?;
+        let incoming: HashSet<String> = {
+            let bt = self.repo.tree_of(&base)?;
+            let ot = self.repo.tree_of(&origin)?;
+            self.repo
+                .diff_tree(&bt, &ot, false)?
+                .into_iter()
+                .map(|d| d.path)
+                .collect()
+        };
+        let changes = self.local_changes_settled(&incoming)?;
 
         // Overlap between the local line (pending + unpublished) and the incoming changes.
         let snap = self.local_snapshot(&changes, &head)?;
@@ -297,7 +345,9 @@ impl ProjectInner {
             origin.clone()
         } else {
             let range = format!("{origin}..{head}");
-            let pending = self.repo.rev_list(&["--first-parent", "--reverse", &range])?;
+            let pending = self
+                .repo
+                .rev_list(&["--first-parent", "--reverse", &range])?;
             match self.rebase_pending(&pending, &origin)? {
                 Rebase::Done(tip) => tip,
                 Rebase::Conflict(paths) => {
@@ -330,24 +380,27 @@ impl ProjectInner {
                 "allowDirty": Vec::<String>::new(),
             })),
         )?;
-        self.progress("update", "materializing", None, "Aggiornamento dei file in corso");
+        self.progress(
+            "update",
+            "materializing",
+            None,
+            "Aggiornamento dei file in corso",
+        );
         let report = self.materialize(&from_tree, &to_tree, &HashSet::new())?;
         self.failpoint("materialize.before_ref_update")?;
         self.repo.update_ref(MAIN_REF, &new_head, Some(&head))?;
         self.step(op, "applied", None)?;
         self.arm_guards(&report, &head, &new_head)?;
         let to_version = self.version_of(&origin)?;
-        self.emit(EngineEvent::UpdateApplied {
-            project_id: self.id.clone(),
-            from_version,
-            to_version,
-            files: files.clone(),
-        });
-        Ok(IntegrateOutcome::Updated {
-            from_version,
-            to_version,
-            files,
-        })
+        if !files.is_empty() {
+            self.emit(EngineEvent::UpdateApplied {
+                project_id: self.id.clone(),
+                from_version,
+                to_version,
+                files,
+            });
+        }
+        Ok(IntegrateOutcome::Updated)
     }
 
     /// Sends the pending versions with their definitive numbers (§7.4.4).
@@ -373,7 +426,7 @@ impl ProjectInner {
                 IntegrateOutcome::Conflict(id) => return Ok(SendOutcome::Conflict(id)),
                 IntegrateOutcome::Blocked(f) => return Ok(SendOutcome::Blocked(f)),
                 IntegrateOutcome::ConflictOpen => return Ok(SendOutcome::ConflictOpen),
-                IntegrateOutcome::Updated { .. } | IntegrateOutcome::UpToDate => {}
+                IntegrateOutcome::Updated | IntegrateOutcome::UpToDate => {}
             }
             let Some(origin) = self.origin()? else {
                 return Err(CoreError::NotLinked("origin/main non disponibile".into()));
@@ -383,7 +436,9 @@ impl ProjectInner {
                 continue; // origin moved again: start over
             }
             let range = format!("{origin}..{head}");
-            let pending = self.repo.rev_list(&["--first-parent", "--reverse", &range])?;
+            let pending = self
+                .repo
+                .rev_list(&["--first-parent", "--reverse", &range])?;
             if pending.is_empty() {
                 return Ok(SendOutcome::NothingToSend);
             }
@@ -436,7 +491,8 @@ impl ProjectInner {
                 Ok(()) => {}
                 Err(e) => {
                     let ce = CoreError::Git(e);
-                    if matches!(&ce, CoreError::Git(g) if g.kind() == rs_git::GitErrorKind::NonFastForward) {
+                    if matches!(&ce, CoreError::Git(g) if g.kind() == rs_git::GitErrorKind::NonFastForward)
+                    {
                         self.rt(|r| r.retrying = true);
                         last_err = Some(ce);
                         continue;
@@ -458,7 +514,9 @@ impl ProjectInner {
             self.repo.update_ref(ORIGIN_REF, &final_tip, None)?;
             self.repo.update_ref(MAIN_REF, &final_tip, Some(&head))?;
             for s in &sent {
-                let _ = self.repo.update_ref(&format!("refs/tags/v{}", s.number), &s.sha, None);
+                let _ = self
+                    .repo
+                    .update_ref(&format!("refs/tags/v{}", s.number), &s.sha, None);
             }
             let now = rs_store::now_ms();
             self.rt(|r| {
@@ -466,7 +524,10 @@ impl ProjectInner {
                 r.retrying = false;
                 r.last_publish_at = Some(now);
             });
-            let _ = self.shared.store.set_setting(&self.id, "lastPublishAt", &now.to_string());
+            let _ = self
+                .shared
+                .store
+                .set_setting(&self.id, "lastPublishAt", &now.to_string());
             self.finish_resolved_conflicts(&sent, &origin, &final_tip)?;
             for s in &sent {
                 self.emit(EngineEvent::VersionPublished {
@@ -489,12 +550,20 @@ impl ProjectInner {
     /// `Rocket-Sync-Conflict` trailer). If it was folded into a later resolution (a second
     /// conflict appeared while the first resolution was waiting to be sent), it is found in the
     /// history that has just been published.
-    fn finish_resolved_conflicts(&self, sent: &[SentVersion], old_origin: &str, final_tip: &str) -> Result<()> {
+    fn finish_resolved_conflicts(
+        &self,
+        sent: &[SentVersion],
+        old_origin: &str,
+        final_tip: &str,
+    ) -> Result<()> {
         for c in self.shared.store.list_conflicts(&self.id, false)? {
             if c.status != ConflictStatus::Resolving {
                 continue;
             }
-            let number = match sent.iter().find(|s| s.conflict_id.as_deref() == Some(c.id.as_str())) {
+            let number = match sent
+                .iter()
+                .find(|s| s.conflict_id.as_deref() == Some(c.id.as_str()))
+            {
                 Some(v) => Some(v.number),
                 None => {
                     let range = format!("{old_origin}..{final_tip}");
@@ -519,7 +588,9 @@ impl ProjectInner {
             };
             let Some(number) = number else { continue };
             if c.remote_branch_pushed {
-                let _ = self.repo.push_delete("origin", &format!("refs/heads/conflitti/{}", c.id));
+                let _ = self
+                    .repo
+                    .push_delete("origin", &format!("refs/heads/conflitti/{}", c.id));
             }
             let mut rec = c.clone();
             rec.status = ConflictStatus::Resolved;
@@ -586,7 +657,13 @@ impl ProjectInner {
                 continue;
             }
             let bytes = std::fs::read(self.folder.join(&c.path))?;
-            if self.shared.config.inspector.validate(&c.path, &bytes).is_ok() {
+            if self
+                .shared
+                .config
+                .inspector
+                .validate(&c.path, &bytes)
+                .is_ok()
+            {
                 out.push(LocalInput {
                     path: c.path.clone(),
                     bytes: Some(bytes),

@@ -149,10 +149,16 @@ impl Store {
         self.with(|c| {
             let tx = c.transaction()?;
             for t in ["journal", "conflicts", "guard_watches", "file_states"] {
-                tx.execute(&format!("DELETE FROM {t} WHERE project_id = ?1"), params![project_id])?;
+                tx.execute(
+                    &format!("DELETE FROM {t} WHERE project_id = ?1"),
+                    params![project_id],
+                )?;
             }
             tx.execute("DELETE FROM settings WHERE scope = ?1", params![project_id])?;
-            tx.execute("DELETE FROM projects WHERE project_id = ?1", params![project_id])?;
+            tx.execute(
+                "DELETE FROM projects WHERE project_id = ?1",
+                params![project_id],
+            )?;
             tx.commit()?;
             Ok(())
         })
@@ -187,13 +193,20 @@ impl Store {
     /// Deletes a setting.
     pub fn delete_setting(&self, scope: &str, key: &str) -> Result<()> {
         self.with(|c| {
-            c.execute("DELETE FROM settings WHERE scope = ?1 AND key = ?2", params![scope, key])?;
+            c.execute(
+                "DELETE FROM settings WHERE scope = ?1 AND key = ?2",
+                params![scope, key],
+            )?;
             Ok(())
         })
     }
 
     /// JSON setting.
-    pub fn get_json<T: serde::de::DeserializeOwned>(&self, scope: &str, key: &str) -> Result<Option<T>> {
+    pub fn get_json<T: serde::de::DeserializeOwned>(
+        &self,
+        scope: &str,
+        key: &str,
+    ) -> Result<Option<T>> {
         match self.get_setting(scope, key)? {
             Some(s) => Ok(Some(serde_json::from_str(&s)?)),
             None => Ok(None),
@@ -240,7 +253,12 @@ impl Store {
     }
 
     /// Records the step reached, optionally replacing the payload.
-    pub fn journal_step(&self, op_id: &str, step: &str, payload: Option<&serde_json::Value>) -> Result<()> {
+    pub fn journal_step(
+        &self,
+        op_id: &str,
+        step: &str,
+        payload: Option<&serde_json::Value>,
+    ) -> Result<()> {
         let now = now_ms();
         self.with(|c| {
             match payload {
@@ -316,7 +334,10 @@ impl Store {
     pub fn journal_get(&self, op_id: &str) -> Result<Option<JournalEntry>> {
         self.with(|c| {
             Ok(c.query_row(
-                &format!("SELECT {} FROM journal WHERE op_id = ?1", Self::JOURNAL_COLS),
+                &format!(
+                    "SELECT {} FROM journal WHERE op_id = ?1",
+                    Self::JOURNAL_COLS
+                ),
                 params![op_id],
                 Self::row_journal,
             )
@@ -397,7 +418,10 @@ impl Store {
     pub fn get_conflict(&self, project_id: &str, id: &str) -> Result<Option<ConflictRecord>> {
         self.with(|c| {
             Ok(c.query_row(
-                &format!("SELECT {} FROM conflicts WHERE project_id = ?1 AND id = ?2", Self::CONFLICT_COLS),
+                &format!(
+                    "SELECT {} FROM conflicts WHERE project_id = ?1 AND id = ?2",
+                    Self::CONFLICT_COLS
+                ),
                 params![project_id, id],
                 Self::row_conflict,
             )
@@ -406,9 +430,14 @@ impl Store {
     }
 
     /// Conflicts of a project, newest first.
-    pub fn list_conflicts(&self, project_id: &str, include_resolved: bool) -> Result<Vec<ConflictRecord>> {
+    pub fn list_conflicts(
+        &self,
+        project_id: &str,
+        include_resolved: bool,
+    ) -> Result<Vec<ConflictRecord>> {
         self.with(|c| {
-            let sql = format!(
+            let sql =
+                format!(
                 "SELECT {} FROM conflicts WHERE project_id = ?1 {} ORDER BY created_at DESC, id",
                 Self::CONFLICT_COLS,
                 if include_resolved { "" } else { "AND status != 'resolved'" }
@@ -595,8 +624,13 @@ mod tests {
     #[test]
     fn publish_policy_roundtrip_and_contract_shape() {
         let s = Store::open_in_memory().unwrap();
-        assert_eq!(s.get_publish_policy("p").unwrap(), PublishPolicy::Assisted { idle_minutes: 10 });
-        let pol = PublishPolicy::OnSave { min_interval_minutes: 5 };
+        assert_eq!(
+            s.get_publish_policy("p").unwrap(),
+            PublishPolicy::Assisted { idle_minutes: 10 }
+        );
+        let pol = PublishPolicy::OnSave {
+            min_interval_minutes: 5,
+        };
         s.set_publish_policy("p", &pol).unwrap();
         assert_eq!(s.get_publish_policy("p").unwrap(), pol);
         assert_eq!(
@@ -607,22 +641,29 @@ mod tests {
             serde_json::to_value(PublishPolicy::default()).unwrap(),
             json!({"mode": "assisted", "idleMinutes": 10})
         );
-        assert_eq!(serde_json::to_value(PublishPolicy::Manual).unwrap(), json!({"mode": "manual"}));
+        assert_eq!(
+            serde_json::to_value(PublishPolicy::Manual).unwrap(),
+            json!({"mode": "manual"})
+        );
     }
 
     #[test]
     fn journal_lifecycle() {
         let s = Store::open_in_memory().unwrap();
-        s.journal_begin("op1", "p", "publish", "start", &json!({"a": 1})).unwrap();
-        s.journal_begin("op2", "p", "update", "start", &json!({})).unwrap();
-        s.journal_step("op1", "pushed", Some(&json!({"a": 2}))).unwrap();
+        s.journal_begin("op1", "p", "publish", "start", &json!({"a": 1}))
+            .unwrap();
+        s.journal_begin("op2", "p", "update", "start", &json!({}))
+            .unwrap();
+        s.journal_step("op1", "pushed", Some(&json!({"a": 2})))
+            .unwrap();
         s.journal_finish("op2", "ok", None).unwrap();
         let open = s.journal_unfinished("p").unwrap();
         assert_eq!(open.len(), 1);
         assert_eq!(open[0].op_id, "op1");
         assert_eq!(open[0].step, "pushed");
         assert_eq!(open[0].payload["a"], 2);
-        s.journal_finish("op1", "recovered", Some("completato")).unwrap();
+        s.journal_finish("op1", "recovered", Some("completato"))
+            .unwrap();
         assert!(s.journal_unfinished("p").unwrap().is_empty());
         let e = s.journal_get("op1").unwrap().unwrap();
         assert_eq!(e.outcome.as_deref(), Some("recovered"));
@@ -645,7 +686,10 @@ mod tests {
             theirs_author: Some("Luca".into()),
             remote_branch_pushed: false,
             origin: "sync".into(),
-            files: vec![ConflictFileRecord { path: "a.ork".into(), kind: "bothModified".into() }],
+            files: vec![ConflictFileRecord {
+                path: "a.ork".into(),
+                kind: "bothModified".into(),
+            }],
             resolution: None,
             resolution_sha: None,
             resolved_at: None,

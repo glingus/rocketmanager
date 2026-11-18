@@ -20,7 +20,10 @@ pub(crate) struct ProjectWatcher {
 
 /// Relative `/`-separated path of `path` under `root` (or its canonical form).
 fn relative(path: &Path, root: &Path, canon: &Path) -> Option<String> {
-    let rel = path.strip_prefix(root).or_else(|_| path.strip_prefix(canon)).ok()?;
+    let rel = path
+        .strip_prefix(root)
+        .or_else(|_| path.strip_prefix(canon))
+        .ok()?;
     let parts: Vec<String> = rel
         .components()
         .map(|c| c.as_os_str().to_string_lossy().into_owned())
@@ -41,7 +44,8 @@ impl ProjectInner {
         let abs = self.folder.join(rel);
         let is_dir = abs.is_dir();
         let g = self.ignore.lock().unwrap_or_else(|p| p.into_inner());
-        g.matched_path_or_any_parents(Path::new(rel), is_dir).is_ignore()
+        g.matched_path_or_any_parents(Path::new(rel), is_dir)
+            .is_ignore()
     }
 
     fn handle_fs_event(&self, canon: &Path, ev: &notify::Event) {
@@ -81,7 +85,10 @@ impl ProjectInner {
 /// Starts watching the project folder recursively.
 pub(crate) fn start_watcher(inner: &Arc<ProjectInner>) -> Result<ProjectWatcher, notify::Error> {
     let weak: Weak<ProjectInner> = Arc::downgrade(inner);
-    let canon: PathBuf = inner.folder.canonicalize().unwrap_or_else(|_| inner.folder.clone());
+    let canon: PathBuf = inner
+        .folder
+        .canonicalize()
+        .unwrap_or_else(|_| inner.folder.clone());
     let canon2 = canon.clone();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         let Some(inner) = weak.upgrade() else { return };

@@ -32,7 +32,6 @@ struct Entry {
 /// What the tracker knows about one file at a given instant.
 #[derive(Debug, Clone)]
 pub(crate) struct Observation {
-    pub meta: Option<Meta>,
     pub stable: bool,
     pub validation: Option<Validation>,
     /// A (re)validation is needed: the file is stable and has no result for the current metadata,
@@ -81,13 +80,15 @@ impl FileTracker {
     }
 
     fn entry(&mut self, path: &str, now: Instant) -> &mut Entry {
-        self.entries.entry(path.to_string()).or_insert_with(|| Entry {
-            last_event: None,
-            meta: None,
-            meta_since: now,
-            validation: None,
-            written_meta: None,
-        })
+        self.entries
+            .entry(path.to_string())
+            .or_insert_with(|| Entry {
+                last_event: None,
+                meta: None,
+                meta_since: now,
+                validation: None,
+                written_meta: None,
+            })
     }
 
     /// Time of the last event or metadata change of any file (used by the automatic publication).
@@ -95,16 +96,22 @@ impl FileTracker {
         paths
             .iter()
             .filter_map(|p| self.entries.get(p))
-            .filter_map(|e| match e.last_event {
-                Some(l) => Some(l.max(e.meta_since)),
-                None => Some(e.meta_since),
+            .map(|e| match e.last_event {
+                Some(l) => l.max(e.meta_since),
+                None => e.meta_since,
             })
             .max()
     }
 
     /// Observes a file: `abs` is its absolute path (used for the Windows exclusive-open probe) and
     /// `current` its metadata right now (`None` = missing).
-    pub(crate) fn observe(&mut self, path: &str, abs: &Path, current: Option<Meta>, now: Instant) -> Observation {
+    pub(crate) fn observe(
+        &mut self,
+        path: &str,
+        abs: &Path,
+        current: Option<Meta>,
+        now: Instant,
+    ) -> Observation {
         let debounce = self.timing.debounce;
         let giveup = self.timing.invalid_giveup;
         let recheck = self.timing.revalidate_interval;
@@ -150,7 +157,6 @@ impl FileTracker {
             (Some(_), true, false) => (false, false),
         };
         Observation {
-            meta: current,
             stable: stable || current.is_none(),
             validation: e.validation.clone(),
             needs_validation,
@@ -268,7 +274,11 @@ mod tests {
         assert!(!o.needs_validation, "too early to recheck");
         let o = t.observe("a", p(), old, t0 + Duration::from_millis(60));
         assert!(o.needs_validation, "due for recheck");
-        t.set_validation("a", Err("ancora troncato".into()), t0 + Duration::from_millis(60));
+        t.set_validation(
+            "a",
+            Err("ancora troncato".into()),
+            t0 + Duration::from_millis(60),
+        );
         let o = t.observe("a", p(), old, t0 + Duration::from_millis(600));
         assert!(o.unreadable);
         assert!(!o.needs_validation);

@@ -87,7 +87,7 @@ Rocket-Sync-Client: 0.1.0
 ## 4. Esecuzione di Git (`rs-git`)
 
 - Percorso del binario `git` configurabile (in produzione: MinGit incluso nell'app; nei test:
-  il `git` di sistema). Versione minima richiesta: **2.38** (serve `git merge-tree --write-tree`).
+  il `git` di sistema). Versione minima richiesta: **2.40** (serve `git merge-tree --write-tree --merge-base`).
 - Ogni invocazione usa un ambiente isolato:
   - `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=<file di config dell'app>`
   - `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS=<programma askpass>` (se configurato), `LC_ALL=C`
