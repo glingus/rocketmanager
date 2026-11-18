@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-publish-policy"
+description = "Enables the get_publish_policy command without any pre-configured scope."
+commands.allow = ["get_publish_policy"]
+
+[[permission]]
+identifier = "deny-get-publish-policy"
+description = "Denies the get_publish_policy command without any pre-configured scope."
+commands.deny = ["get_publish_policy"]

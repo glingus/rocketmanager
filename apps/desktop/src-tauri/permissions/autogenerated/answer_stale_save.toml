@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-answer-stale-save"
+description = "Enables the answer_stale_save command without any pre-configured scope."
+commands.allow = ["answer_stale_save"]
+
+[[permission]]
+identifier = "deny-answer-stale-save"
+description = "Denies the answer_stale_save command without any pre-configured scope."
+commands.deny = ["answer_stale_save"]

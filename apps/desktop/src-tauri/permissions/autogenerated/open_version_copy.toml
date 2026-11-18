@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-version-copy"
+description = "Enables the open_version_copy command without any pre-configured scope."
+commands.allow = ["open_version_copy"]
+
+[[permission]]
+identifier = "deny-open-version-copy"
+description = "Denies the open_version_copy command without any pre-configured scope."
+commands.deny = ["open_version_copy"]

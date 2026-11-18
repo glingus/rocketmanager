@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-conflict-copy"
+description = "Enables the open_conflict_copy command without any pre-configured scope."
+commands.allow = ["open_conflict_copy"]
+
+[[permission]]
+identifier = "deny-open-conflict-copy"
+description = "Denies the open_conflict_copy command without any pre-configured scope."
+commands.deny = ["open_conflict_copy"]
