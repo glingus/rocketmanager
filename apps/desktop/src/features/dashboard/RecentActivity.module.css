@@ -1,0 +1,50 @@
+.list {
+  list-style: none;
+  margin: -6px -8px;
+  padding: 0;
+}
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.row:hover {
+  background: var(--paper-2);
+}
+li:last-child .row {
+  border-bottom: 0;
+}
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.summary {
+  line-height: 1.35;
+}
+.row[data-importance='critical'] .summary {
+  font-weight: 600;
+  color: var(--lamp-red-ink);
+}
+.row[data-importance='important'] .summary {
+  font-weight: 600;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  color: var(--ink-600);
+}
+.meta svg {
+  width: 12px;
+  height: 12px;
+}

@@ -1,0 +1,123 @@
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px 10px 16px;
+  background: var(--cc-bg);
+  border: 1px solid color-mix(in srgb, var(--cc-edge) 45%, var(--line));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  transition:
+    transform var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+.tile::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: var(--cc-edge);
+}
+.tile:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+}
+.tile[draggable='true'] {
+  cursor: grab;
+}
+.dragging {
+  opacity: 0.45;
+  transform: scale(0.98);
+}
+.dropTarget {
+  box-shadow:
+    0 -4px 0 0 var(--brass-500),
+    var(--shadow-1);
+}
+.closed .title {
+  color: var(--ink-600);
+}
+.top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+  font-size: var(--text-xs);
+  color: var(--ink-700);
+}
+.grip {
+  display: inline-flex;
+  margin-left: -8px;
+  color: var(--ink-500);
+}
+.category {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.kind {
+  margin-left: auto;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+.title {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.titleButton {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.titleButton:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.desc {
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.spacer {
+  flex: 1;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin: 2px -4px -4px 0;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.tile:hover .actions,
+.tile:focus-within .actions {
+  opacity: 1;
+}

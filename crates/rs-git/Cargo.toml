@@ -3,6 +3,15 @@ name = "rs-git"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 publish = false
+description = "Safe wrapper around the git binary used by Rocket Sync"
 
 [dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+regex = "1"
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3"

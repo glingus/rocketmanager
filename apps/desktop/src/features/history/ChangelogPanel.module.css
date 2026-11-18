@@ -1,0 +1,79 @@
+.panel {
+  min-height: 0;
+}
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--text-xl);
+}
+.num {
+  padding: 2px 9px;
+  border-radius: var(--radius-xs);
+  background: var(--walnut-800);
+  color: var(--brass-300);
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+.byline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 420px;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sha {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-600);
+}
+.h {
+  margin-bottom: 8px;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-800);
+}
+.against {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-600);
+}
+.description {
+  padding: 10px 14px;
+  background: var(--paper-0);
+  border-left: 4px solid var(--brass-500);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  line-height: 1.55;
+}
+.none {
+  color: var(--ink-600);
+}
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}

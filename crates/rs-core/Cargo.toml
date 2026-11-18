@@ -3,6 +3,31 @@ name = "rs-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 publish = false
+description = "Rocket Sync synchronisation engine"
 
 [dependencies]
+rs-git = { path = "../rs-git" }
+rs-store = { path = "../rs-store" }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+notify = "6"
+ignore = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+rand = "0.8"
+tracing = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "test-util"] }

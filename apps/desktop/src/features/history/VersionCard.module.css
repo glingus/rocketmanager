@@ -1,0 +1,116 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--paper-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.card:hover {
+  transform: translateX(2px);
+  border-color: var(--steel-500);
+  box-shadow: var(--shadow-2);
+}
+.selected {
+  border-color: var(--cherry-700);
+  box-shadow:
+    0 0 0 3px var(--cherry-600),
+    0 0 0 4px var(--cherry-900),
+    var(--shadow-2);
+  background: var(--paper-0);
+}
+.pending {
+  border-style: dashed;
+  background: #f1f4f8;
+}
+.top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.number {
+  flex-shrink: 0;
+  min-width: 46px;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--walnut-800);
+  color: var(--brass-300);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: center;
+}
+.pending .number {
+  background: var(--lamp-blue-bg);
+  color: var(--lamp-blue-ink);
+  border: 1px solid #b3c6d8;
+}
+.title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.badges {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-sm);
+  color: var(--ink-700);
+}
+.dot {
+  color: var(--ink-500);
+}
+.files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 1px 7px;
+  border-radius: var(--radius-xs);
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-800);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file[data-change='added'] {
+  border-left: 3px solid var(--lamp-green);
+}
+.file[data-change='deleted'] {
+  border-left: 3px solid var(--lamp-red);
+}
+.file[data-change='modified'] {
+  border-left: 3px solid var(--lamp-amber);
+}
+.more {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--ink-600);
+}

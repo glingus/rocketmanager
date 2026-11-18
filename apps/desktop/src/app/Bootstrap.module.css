@@ -1,0 +1,7 @@
+.boot {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  background: var(--wood-cherry);
+  color: var(--wood-ink);
+}

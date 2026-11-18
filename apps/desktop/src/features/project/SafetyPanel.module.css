@@ -1,0 +1,32 @@
+.empty {
+  color: var(--ink-600);
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-700);
+}
+.item:last-child {
+  border-bottom: 0;
+}
+.item svg {
+  color: var(--lamp-green-ink);
+}
+.what {
+  flex: 1;
+  font-weight: 500;
+  color: var(--ink-900);
+}
+.when,
+.count {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}

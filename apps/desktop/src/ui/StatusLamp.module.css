@@ -1,0 +1,94 @@
+.lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-800);
+  font-weight: 600;
+  font-size: var(--text-md);
+  line-height: 1.2;
+}
+.lamp[data-tone='green'] { --lamp: var(--lamp-green); --lamp-ink: var(--lamp-green-ink); }
+.lamp[data-tone='amber'] { --lamp: var(--lamp-amber); --lamp-ink: var(--lamp-amber-ink); }
+.lamp[data-tone='red'] { --lamp: var(--lamp-red); --lamp-ink: var(--lamp-red-ink); }
+.lamp[data-tone='blue'] { --lamp: var(--lamp-blue); --lamp-ink: var(--lamp-blue-ink); }
+.lamp[data-tone='neutral'] { --lamp: var(--lamp-off); --lamp-ink: var(--ink-600); }
+
+.bulb {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #fff;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.7) 0 12%, transparent 40%),
+    radial-gradient(circle at 50% 55%, var(--lamp), color-mix(in srgb, var(--lamp) 70%, #000));
+  box-shadow:
+    0 0 0 2px var(--steel-200),
+    0 0 0 3px var(--steel-500),
+    0 0 10px 1px color-mix(in srgb, var(--lamp) 55%, transparent),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.25);
+}
+.bulb svg {
+  width: 13px;
+  height: 13px;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.35));
+}
+.sm .bulb {
+  width: 18px;
+  height: 18px;
+  box-shadow:
+    0 0 0 1.5px var(--steel-200),
+    0 0 0 2.5px var(--steel-500),
+    0 0 7px 0 color-mix(in srgb, var(--lamp) 50%, transparent),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25);
+}
+.sm .bulb svg {
+  width: 10px;
+  height: 10px;
+}
+.sm {
+  font-size: var(--text-sm);
+  gap: 7px;
+}
+.lg .bulb {
+  width: 32px;
+  height: 32px;
+}
+.lg .bulb svg {
+  width: 17px;
+  height: 17px;
+}
+.lg {
+  font-size: var(--text-xl);
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+.label {
+  color: var(--lamp-ink);
+}
+.onWood .label {
+  color: var(--wood-ink);
+}
+.onWood .bulb {
+  box-shadow:
+    0 0 0 2px var(--steel-200),
+    0 0 0 3px var(--cherry-950),
+    0 0 12px 2px color-mix(in srgb, var(--lamp) 60%, transparent),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.25);
+}
+.busy {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    filter: brightness(1.25);
+    box-shadow:
+      0 0 0 2px var(--steel-200),
+      0 0 0 3px var(--steel-500),
+      0 0 16px 4px color-mix(in srgb, var(--lamp) 70%, transparent),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.25);
+  }
+}

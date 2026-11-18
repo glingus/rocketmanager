@@ -1,0 +1,93 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1000px;
+}
+.title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+}
+.subtitle {
+  color: var(--ink-700);
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.h {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-700);
+}
+.open {
+  background: #fdeae6;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+}
+.icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--lamp-red);
+  color: #fff;
+}
+.text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fileList {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+}
+.badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.link {
+  text-decoration: none;
+}
+.resolved {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper-1);
+}
+.resolved li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.resolved li:last-child {
+  border-bottom: 0;
+}
+.rfiles {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+.when {
+  color: var(--ink-600);
+  font-size: var(--text-sm);
+}

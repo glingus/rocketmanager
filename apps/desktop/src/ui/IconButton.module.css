@@ -1,0 +1,60 @@
+.btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-800);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.btn svg {
+  width: 18px;
+  height: 18px;
+}
+.md {
+  width: 34px;
+  height: 34px;
+}
+.sm {
+  width: 28px;
+  height: 28px;
+}
+.sm svg {
+  width: 16px;
+  height: 16px;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ghost:hover:not(:disabled) {
+  background: rgba(93, 78, 66, 0.12);
+  border-color: var(--line);
+}
+.metal {
+  background: var(--metal);
+  border-color: var(--steel-400);
+  box-shadow: var(--shadow-inset), var(--shadow-1);
+}
+.metal:hover:not(:disabled) {
+  background: var(--metal-hover);
+}
+.wood {
+  color: var(--wood-ink);
+}
+.wood:hover:not(:disabled) {
+  background: rgba(255, 235, 210, 0.16);
+  border-color: rgba(255, 220, 180, 0.35);
+}
+.wood:focus-visible {
+  outline-color: var(--focus-ring-on-wood);
+}
+.pressed {
+  background: rgba(216, 170, 72, 0.25);
+  border-color: var(--brass-500);
+}

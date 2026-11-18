@@ -1,0 +1,33 @@
+.diff {
+  margin: 0;
+  padding: 6px 0;
+  max-height: 280px;
+  overflow: auto;
+  background: var(--paper-0);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.line {
+  display: block;
+  padding: 0 12px;
+  white-space: pre;
+}
+.line[data-kind='add'] {
+  background: #dff1e2;
+  color: #12452a;
+}
+.line[data-kind='del'] {
+  background: #f9dad4;
+  color: #6d150e;
+}
+.line[data-kind='hunk'] {
+  background: var(--lamp-blue-bg);
+  color: var(--lamp-blue-ink);
+}
+.line[data-kind='meta'] {
+  color: var(--ink-600);
+  font-weight: 600;
+}

@@ -1,0 +1,10 @@
+.spinner {
+  display: inline-flex;
+  animation: spin 0.9s linear infinite;
+  color: currentColor;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
