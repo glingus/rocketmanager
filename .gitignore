@@ -1,0 +1,31 @@
+# Rust
+target/
+
+# Node
+node_modules/
+dist/
+coverage/
+.vite/
+playwright-report/
+test-results/
+
+# Tauri
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/resources/mingit/
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+
+# Segreti e file locali
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
