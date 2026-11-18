@@ -144,6 +144,9 @@ export function lampIcon(name: LampIcon): IconComponent {
 
 const CATEGORY_ICONS: Record<string, IconComponent> = {
   'sticky-note': StickyNote,
+  note: StickyNote,
+  'alert-triangle': TriangleAlert,
+  'check-square': ListChecks,
   'triangle-alert': TriangleAlert,
   'list-checks': ListChecks,
   'shopping-cart': ShoppingCart,

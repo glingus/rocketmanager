@@ -51,12 +51,14 @@
   flex-direction: column;
   gap: 16px;
 }
+.day::first-letter {
+  text-transform: uppercase;
+}
 .day {
   margin-bottom: 8px;
   font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: 0.05em;
-  text-transform: capitalize;
   color: var(--ink-700);
 }
 .list {

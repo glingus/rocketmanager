@@ -24,7 +24,7 @@ export function ClaimsPanel({ projectId }: { projectId: string }) {
   const [reserving, setReserving] = useState(false);
   const mine = (c: FileClaim) => byId.get(c.userId)?.githubLogin === me;
 
-  const release = useApiMutation((c: FileClaim) => data.releaseFile({ projectId, path: c.path, kind: c.kind, machineId: c.machineId }), {
+  const release = useApiMutation((c: FileClaim) => data.releaseFile({ projectId, path: c.path, kind: c.kind }), {
     invalidate: [qk.claims(projectId)],
     successToast: it.overview.claims.released,
   });

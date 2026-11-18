@@ -454,7 +454,7 @@ export function seedActivity(world: MockWorld, now: number): void {
   const crit = byTitle('Cedimento');
   const leak = byTitle('Perdite');
   const overdue = byTitle('Allineare');
-  world.emitEvent(E, 'conflict.detected', { files: F1, conflictId: '20261113-a8f3kq' }, { actorId: 'u-luca', at: at(6, 19) });
+  world.emitEvent(E, 'conflict.detected', { files: [F1], fileCount: 1, conflictId: '20261113-a8f3kq' }, { actorId: 'u-luca', at: at(6, 19) });
   world.emitEvent(E, 'file.editing_started', { path: F2 }, { actorId: 'u-marco', at: at(0, 11) });
   if (crit) {
     world.emitEvent(E, 'card.important', { title: crit.title, cardId: crit.id, priority: 'critical' }, { actorId: 'u-luca', at: at(3, 18) });
@@ -464,10 +464,10 @@ export function seedActivity(world: MockWorld, now: number): void {
   if (overdue) world.emitEvent(E, 'card.assigned', { title: overdue.title, cardId: overdue.id }, { actorId: 'u-simone', at: at(7, 10), recipients: ['u-marco'] });
   world.emitEvent(E, 'card.created', { title: 'Revisione della checklist di lancio' }, { actorId: 'u-simone', at: at(2, 14) });
   world.emitEvent(E, 'card.completed', { title: 'Pulire il banco prova e archiviare i dati' }, { actorId: 'u-giulia', at: at(9, 17) });
-  world.emitEvent(E, 'member.added', { login: 'grinaldi', role: 'member' }, { actorId: 'u-simone', at: at(36, 9) });
+  world.emitEvent(E, 'member.added', { targetName: 'Giulia Rinaldi', role: 'member' }, { actorId: 'u-simone', at: at(36, 9) });
   world.emitEvent(E, 'card.assigned', { title: 'Controllare il tracking del GPS prima del lancio' }, { actorId: 'u-simone', at: at(1, 12), recipients: ['u-giulia'] });
   world.emitEvent(PROJECT_IDS.aurora, 'card.important', { title: 'Verificare la separazione degli stadi', priority: 'high' }, { actorId: 'u-luca', at: at(2, 16) });
-  world.emitEvent(PROJECT_IDS.vega, 'member.added', { login: 'lconti', role: 'member' }, { actorId: 'u-giulia', at: at(22, 15) });
+  world.emitEvent(PROJECT_IDS.vega, 'member.added', { targetName: 'Luca Conti', role: 'member' }, { actorId: 'u-giulia', at: at(22, 15) });
 
   world.conflictRecords.push({
     id: '20261113-a8f3kq',

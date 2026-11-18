@@ -319,6 +319,59 @@ await flow('finestra stretta 1024px', async () => {
   await context.close();
 });
 
+
+// ---------------------------------------------------------------------------
+await flow('accessibilità: nomi, tabindex, focus visibile', async () => {
+  const routes = [
+    '', `p/${EXP}/overview`, `p/${EXP}/history`, `p/${VEGA}/conflicts`, `p/${EXP}/notes`, `p/${EXP}/members`,
+    `p/${EXP}/activity`, `p/${EXP}/settings`, 'settings',
+  ];
+  const { page, context } = await newPage(ready());
+  const problems = [];
+  for (const r of routes) {
+    await page.goto(ready(r));
+    await page.waitForTimeout(900);
+    const found = await page.evaluate(() => {
+      const out = [];
+      const name = (el) => {
+        const labelled = el.getAttribute('aria-labelledby');
+        if (labelled && document.getElementById(labelled.split(' ')[0])?.textContent?.trim()) return true;
+        if (el.getAttribute('aria-label')?.trim()) return true;
+        if (el.labels && el.labels.length) return true;
+        if (el.closest('label')) return true;
+        if ((el.textContent ?? '').trim()) return true;
+        if (el.getAttribute('title')?.trim()) return true;
+        return false;
+      };
+      for (const el of document.querySelectorAll('button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=tab], [role=radio], [role=switch]')) {
+        if (!name(el)) out.push(`sin nome: <${el.tagName.toLowerCase()} class="${String(el.className).slice(0, 40)}">`);
+        if (el.tabIndex > 0) out.push(`tabindex positivo su <${el.tagName.toLowerCase()}>`);
+      }
+      if (document.querySelector('img:not([alt])')) out.push('img senza alt');
+      if (!document.querySelector('main')) out.push('manca <main>');
+      return out;
+    });
+    found.forEach((f) => problems.push(`${r || '/'}: ${f}`));
+    // keyboard: the first focusable elements show a visible focus indicator
+    await page.evaluate(() => document.body.focus());
+    for (let i = 0; i < 10; i++) {
+      await page.keyboard.press('Tab');
+      const bad = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return null;
+        const cs = getComputedStyle(el);
+        const has = (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0) || cs.boxShadow !== 'none';
+        // checkbox / radio / switch inputs are visually hidden: the wrapper shows the ring (:has / sibling)
+        const hidden = el.tagName === 'INPUT' && cs.opacity === '0';
+        return has || hidden ? null : `${el.tagName.toLowerCase()} ${String(el.className).slice(0, 40)}`;
+      });
+      if (bad) problems.push(`${r || '/'}: focus non visibile su ${bad}`);
+    }
+  }
+  await context.close();
+  assert.equal(problems.length, 0, `a11y:\n${[...new Set(problems)].join('\n')}`);
+});
+
 await browser.close();
 await server.close();
 

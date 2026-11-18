@@ -152,7 +152,7 @@ export async function applyReadyScenario(world: MockWorld): Promise<void> {
         createdAt: conflict.createdAt,
         resolvedAt: null,
       });
-      world.emitEvent(PROJECT_IDS.vega, 'conflict.detected', { files: conflict.files.map((f) => f.path).join(', '), conflictId: conflict.id }, { actorId: 'u-giulia' });
+      world.emitEvent(PROJECT_IDS.vega, 'conflict.detected', { files: conflict.files.map((f) => f.path), fileCount: conflict.files.length, conflictId: conflict.id }, { actorId: 'u-giulia' });
     }
     void PEOPLE;
   } finally {

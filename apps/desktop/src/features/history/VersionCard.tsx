@@ -31,18 +31,21 @@ export function VersionCard({
 }) {
   const v = version;
   const files = v.files.slice(0, 3);
+  const hasBadges = v.kind === 'restore' || v.kind === 'conflictResolution' || !v.published || !!compareMark;
   return (
     <button type="button" className={[styles.card, selected ? styles.selected : '', !v.published ? styles.pending : ''].join(' ')} onClick={onSelect} aria-pressed={selected} data-testid={`version-${v.number ?? 'pending'}`}>
       <div className={styles.top}>
         <span className={styles.number}>{it.history.versionNumber(v.number)}</span>
         <h3 className={styles.title}>{v.kind === 'init' ? it.history.initTitle : v.title}</h3>
-        <span className={styles.badges}>
+      </div>
+      {hasBadges && (
+      <span className={styles.badges}>
           {v.kind === 'restore' && <Badge tone="brass" icon={<RotateCcw />}>{it.history.badge.restore}{v.restoredFrom != null ? ` ${it.history.badge.restoredFrom(v.restoredFrom)}` : ''}</Badge>}
           {v.kind === 'conflictResolution' && <Badge tone="red" icon={<GitMerge />}>{it.history.badge.conflictResolution}</Badge>}
           {!v.published && <Badge tone="blue" icon={<Clock />}>{it.history.badge.pending}</Badge>}
           {compareMark && <Badge tone="wood">{compareMark === 'from' ? 'A' : 'B'}</Badge>}
-        </span>
-      </div>
+      </span>
+      )}
       <div className={styles.meta}>
         <Avatar name={v.author.name} size={20} />
         <span>{v.author.name}</span>

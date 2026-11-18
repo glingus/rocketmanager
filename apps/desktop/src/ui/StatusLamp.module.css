@@ -31,6 +31,12 @@
     0 0 10px 1px color-mix(in srgb, var(--lamp) 55%, transparent),
     inset 0 -2px 3px rgba(0, 0, 0, 0.25);
 }
+.lamp[data-tone='amber'] .bulb {
+  color: #2a1a05;
+}
+.lamp[data-tone='amber'] .bulb svg {
+  filter: none;
+}
 .bulb svg {
   width: 13px;
   height: 13px;

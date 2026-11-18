@@ -216,7 +216,7 @@ export class MockData implements DataService {
     } else {
       w.invitations.push({ id: w.uid('inv'), projectId, githubLogin: login, role, status: 'pending', createdAt: w.iso() });
     }
-    w.emitEvent(projectId, 'member.added', { login, role });
+    w.emitEvent(projectId, 'member.added', { targetName: person?.name ?? login, role });
     w.emitData('project_members', projectId);
   }
 
@@ -225,9 +225,8 @@ export class MockData implements DataService {
     this.requireAdmin(projectId);
     this.lastAdminGuard(projectId, userId);
     const w = this.world;
-    const login = w.person(userId).login;
     w.members = w.members.filter((m) => !(m.projectId === projectId && m.userId === userId));
-    w.emitEvent(projectId, 'member.removed', { login });
+    w.emitEvent(projectId, 'member.removed', { targetName: w.person(userId).name });
     w.emitData('project_members', projectId);
   }
 
@@ -245,7 +244,7 @@ export class MockData implements DataService {
     const m = this.world.members.find((x) => x.projectId === projectId && x.userId === userId);
     if (!m) throw appError('notFound', 'Membro non trovato.');
     m.role = role;
-    this.world.emitEvent(projectId, 'member.role_changed', { login: this.world.person(userId).login, role });
+    this.world.emitEvent(projectId, 'member.role_changed', { targetName: this.world.person(userId).name, role });
     this.world.emitData('project_members', projectId);
   }
 
@@ -269,12 +268,12 @@ export class MockData implements DataService {
     conflictId: string;
     files: { path: string; kind: string }[];
     theirsVersion: number | null;
-    theirsUserLogin: string | null;
+    theirsUserId: string | null;
   }): Promise<void> {
     await this.ready();
     const w = this.world;
     if (w.conflictRecords.some((c) => c.id === args.conflictId)) return; // idempotent on the id
-    const theirs = w.people.find((p) => p.login === args.theirsUserLogin);
+    const theirs = w.people.find((p) => p.id === args.theirsUserId);
     w.conflictRecords.push({
       id: args.conflictId,
       projectId: args.projectId,
@@ -288,7 +287,7 @@ export class MockData implements DataService {
       createdAt: w.iso(),
       resolvedAt: null,
     });
-    w.emitEvent(args.projectId, 'conflict.detected', { files: args.files.map((f) => f.path).join(', '), conflictId: args.conflictId });
+    w.emitEvent(args.projectId, 'conflict.detected', { files: args.files.map((f) => f.path), fileCount: args.files.length, conflictId: args.conflictId });
     w.emitData('conflicts', args.projectId);
   }
 
@@ -335,7 +334,7 @@ export class MockData implements DataService {
     w.emitData('file_claims', args.projectId);
   }
 
-  async releaseFile(args: { projectId: string; path: string; kind: 'editing' | 'reserved'; machineId: string }) {
+  async releaseFile(args: { projectId: string; path: string; kind: 'editing' | 'reserved' }) {
     await this.ready();
     const w = this.world;
     w.claims = w.claims.filter((c) => !(c.projectId === args.projectId && c.userId === w.me.id && c.path === args.path && c.kind === args.kind));

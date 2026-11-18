@@ -28,6 +28,15 @@ import type {
   RealtimeTable,
 } from '../types/data';
 import type { DataService, RealtimeHandler, SessionTokens } from './types';
+import {
+  createProjectBody,
+  discordBody,
+  memberBody,
+  type AcceptInvitationsResult,
+  type EdgeFunctionName,
+  type CreateProjectResult,
+  type EdgeErrorBody,
+} from './edgeContract';
 
 export type SupabaseConfig = { url: string; anonKey: string };
 
@@ -192,18 +201,17 @@ export class SupabaseData implements DataService {
     return res.data;
   }
 
-  private async fn<T>(name: string, body: Record<string, unknown>, fallback: string): Promise<T> {
+  private async fn<T>(name: EdgeFunctionName, body: Record<string, unknown>, fallback: string): Promise<T> {
     const { data, error } = await this.sb.functions.invoke(name, { body });
     if (error) {
-      // Edge Functions answer with { error: "messaggio in italiano" } on failures.
+      // Edge Functions fail with `{ error: { code, message } }` and a message already in Italian.
       const ctx = (error as { context?: Response }).context;
-      if (ctx && typeof ctx.json === 'function') {
-        try {
-          const payload = (await ctx.clone().json()) as { error?: string; message?: string };
-          const text = payload.error ?? payload.message;
-          if (text) throw failure(text, undefined, ctx.status === 403 ? 'authFailed' : 'internal');
-        } catch (inner) {
-          if (typeof inner === 'object' && inner !== null && 'retryable' in inner) throw inner;
+      if (ctx && typeof ctx.clone === 'function') {
+        const payload = (await ctx.clone().json().catch(() => null)) as Partial<EdgeErrorBody> | null;
+        const text = payload?.error?.message;
+        if (text) {
+          const code = ctx.status === 401 ? 'authRequired' : ctx.status === 403 ? 'authFailed' : 'internal';
+          throw failure(text, payload?.error?.code, code);
         }
       }
       throw toError(error, fallback);
@@ -245,8 +253,8 @@ export class SupabaseData implements DataService {
   }
 
   async acceptInvitations(): Promise<number> {
-    const res = await this.fn<{ accepted?: number }>('accept-invitations', {}, 'Non riesco a controllare gli inviti.');
-    return res?.accepted ?? 0;
+    const res = await this.fn<AcceptInvitationsResult>('accept-invitations', {}, 'Non riesco a controllare gli inviti.');
+    return res.accepted.length;
   }
 
   // ---- projects ----------------------------------------------------------------
@@ -264,8 +272,9 @@ export class SupabaseData implements DataService {
   }
 
   async createProject(input: { name: string; description?: string }): Promise<Project> {
-    const res = await this.fn<{ project: Row }>('create-project', { name: input.name, description: input.description ?? '' }, 'Non sono riuscito a creare il progetto.');
-    return mapProject(res.project);
+    const res = await this.fn<CreateProjectResult>('create-project', createProjectBody(input.name, input.description ?? ''), 'Non sono riuscito a creare il progetto.');
+    const row = this.check(await this.sb.from('projects').select('*').eq('id', res.projectId).single(), 'Il progetto è stato creato ma non riesco a leggerlo.');
+    return mapProject(row as Row);
   }
 
   async updateProject(projectId: string, patch: { name?: string; description?: string; settings?: Partial<ProjectSettings> }): Promise<Project> {
@@ -320,16 +329,16 @@ export class SupabaseData implements DataService {
   }
 
   async addMember(projectId: string, githubLogin: string, role: MemberRole): Promise<void> {
-    await this.fn('manage-members', { projectId, action: 'add', githubLogin, role }, 'Non sono riuscito ad aggiungere il membro.');
+    await this.fn('manage-members', memberBody.add(projectId, githubLogin.trim().replace(/^@/, ''), role), 'Non sono riuscito ad aggiungere il membro.');
   }
   async removeMember(projectId: string, userId: string): Promise<void> {
-    await this.fn('manage-members', { projectId, action: 'remove', userId }, 'Non sono riuscito a rimuovere il membro.');
+    await this.fn('manage-members', memberBody.remove(projectId, userId), 'Non sono riuscito a rimuovere il membro.');
   }
   async revokeInvitation(projectId: string, invitation: Invitation): Promise<void> {
-    await this.fn('manage-members', { projectId, action: 'remove', githubLogin: invitation.githubLogin }, 'Non sono riuscito a revocare l’invito.');
+    await this.fn('manage-members', memberBody.revokeInvitation(projectId, invitation.githubLogin), 'Non sono riuscito a revocare l’invito.');
   }
   async setMemberRole(projectId: string, userId: string, role: MemberRole): Promise<void> {
-    await this.fn('manage-members', { projectId, action: 'set_role', userId, role }, 'Non sono riuscito a cambiare il ruolo.');
+    await this.fn('manage-members', memberBody.setRole(projectId, userId, role), 'Non sono riuscito a cambiare il ruolo.');
   }
 
   // ---- versions index and conflicts ----------------------------------------------
@@ -371,36 +380,29 @@ export class SupabaseData implements DataService {
     }));
   }
 
-  private async userIdByLogin(login: string | null): Promise<string | null> {
-    if (!login) return null;
-    const { data } = await this.sb.from('profiles').select('id').eq('github_login', login).maybeSingle();
-    return data ? str((data as Row).id) : null;
-  }
-
   async reportConflict(args: {
     projectId: string;
     conflictId: string;
     files: { path: string; kind: string }[];
     theirsVersion: number | null;
-    theirsUserLogin: string | null;
+    theirsUserId: string | null;
   }): Promise<void> {
-    const theirsUserId = await this.userIdByLogin(args.theirsUserLogin);
     const { error } = await this.sb.rpc('report_conflict', {
-      project_id: args.projectId,
-      conflict_id: args.conflictId,
-      files: args.files,
-      theirs_version: args.theirsVersion,
-      theirs_user_id: theirsUserId,
+      p_project_id: args.projectId,
+      p_conflict_id: args.conflictId,
+      p_files: args.files,
+      p_theirs_version: args.theirsVersion,
+      p_theirs_user_id: args.theirsUserId,
     });
     if (error) throw toError(error, 'Non riesco a registrare il conflitto per il team.');
   }
 
   async resolveConflictRecord(args: { projectId: string; conflictId: string; resolution: unknown; resolvedVersion: number }): Promise<void> {
     const { error } = await this.sb.rpc('resolve_conflict_record', {
-      project_id: args.projectId,
-      conflict_id: args.conflictId,
-      resolution: args.resolution,
-      resolved_version: args.resolvedVersion,
+      p_project_id: args.projectId,
+      p_conflict_id: args.conflictId,
+      p_resolution: args.resolution,
+      p_resolved_version: args.resolvedVersion,
     });
     if (error) throw toError(error, 'Non riesco a registrare la risoluzione del conflitto.');
   }
@@ -424,23 +426,23 @@ export class SupabaseData implements DataService {
 
   async claimFile(args: { projectId: string; path: string; kind: ClaimKind; note?: string | null; machineId: string; expiresAt?: string | null }): Promise<void> {
     const { error } = await this.sb.rpc('claim_file', {
-      project_id: args.projectId,
-      path: args.path,
-      kind: args.kind,
-      note: args.note ?? null,
-      machine_id: args.machineId,
-      expires_at: args.expiresAt ?? null,
+      p_project_id: args.projectId,
+      p_path: args.path,
+      p_kind: args.kind,
+      p_note: args.note ?? null,
+      p_machine_id: args.machineId,
+      p_expires_at: args.expiresAt ?? null,
     });
     if (error) throw toError(error, 'Non riesco a segnalare il file in modifica.');
   }
 
-  async releaseFile(args: { projectId: string; path: string; kind: ClaimKind; machineId: string }): Promise<void> {
-    const { error } = await this.sb.rpc('release_file', { project_id: args.projectId, path: args.path, kind: args.kind, machine_id: args.machineId });
+  async releaseFile(args: { projectId: string; path: string; kind: ClaimKind }): Promise<void> {
+    const { error } = await this.sb.rpc('release_file', { p_project_id: args.projectId, p_path: args.path, p_kind: args.kind });
     if (error) throw toError(error, 'Non riesco a rilasciare il file.');
   }
 
   async heartbeatClaims(projectId: string, machineId: string): Promise<void> {
-    await this.sb.rpc('heartbeat_claims', { project_id: projectId, machine_id: machineId });
+    await this.sb.rpc('heartbeat_claims', { p_project_id: projectId, p_machine_id: machineId });
   }
 
   // ---- notes and tasks -----------------------------------------------------------
@@ -488,10 +490,8 @@ export class SupabaseData implements DataService {
   }
 
   async updateCard(cardId: string, patch: CardInput): Promise<Card> {
+    // updated_at and completed_at are maintained by the `cards_guard` trigger.
     const update = cardRow(patch);
-    if (patch.status === 'completed') update.completed_at = new Date().toISOString();
-    else if (patch.status) update.completed_at = null;
-    update.updated_at = new Date().toISOString();
     const row = this.check(await this.sb.from('cards').update(update).eq('id', cardId).select('*').single(), 'Non riesco a salvare la card.');
     return mapCard(row as Row);
   }
@@ -521,7 +521,7 @@ export class SupabaseData implements DataService {
 
   async updateComment(commentId: string, body: string): Promise<CardComment> {
     const row = this.check(
-      await this.sb.from('card_comments').update({ body: body.trim(), edited_at: new Date().toISOString() }).eq('id', commentId).select('*').single(),
+      await this.sb.from('card_comments').update({ body: body.trim() }).eq('id', commentId).select('*').single(),
       'Puoi modificare solo i tuoi commenti.',
     );
     return this.mapComment(row as Row);
@@ -584,7 +584,7 @@ export class SupabaseData implements DataService {
   // ---- events, activity, notifications -----------------------------------------------
 
   async emitEvent(projectId: string, type: string, payload: Record<string, unknown>, recipients?: string[]): Promise<void> {
-    const { error } = await this.sb.rpc('emit_event', { project_id: projectId, type, payload, recipients: recipients ?? null });
+    const { error } = await this.sb.rpc('emit_event', { p_project_id: projectId, p_type: type, p_payload: payload, p_recipients: recipients ?? null });
     if (error) throw toError(error, 'Non riesco a registrare l’evento.');
   }
 
@@ -650,7 +650,7 @@ export class SupabaseData implements DataService {
   }
 
   async markNotificationsRead(ids?: number[]): Promise<void> {
-    const { error } = await this.sb.rpc('mark_notifications_read', { ids: ids ?? null });
+    const { error } = await this.sb.rpc('mark_notifications_read', { p_ids: ids ?? null });
     if (error) throw toError(error, 'Non riesco a segnare le notifiche come lette.');
   }
 
@@ -682,20 +682,17 @@ export class SupabaseData implements DataService {
   }
 
   async setDiscordEventTypes(projectId: string, types: string[]): Promise<void> {
-    const id = await this.uid();
-    const { error } = await this.sb
-      .from('project_discord_settings')
-      .update({ enabled_event_types: types, updated_by: id, updated_at: new Date().toISOString() })
-      .eq('project_id', projectId);
+    // updated_by / updated_at are set by the `discord_settings_guard` trigger.
+    const { error } = await this.sb.from('project_discord_settings').update({ enabled_event_types: types }).eq('project_id', projectId);
     if (error) throw toError(error, 'Solo un amministratore può cambiare le impostazioni di Discord.');
   }
 
   async setDiscordWebhook(projectId: string, url: string | null): Promise<void> {
-    await this.fn('discord-settings', { projectId, action: url ? 'set_webhook' : 'clear_webhook', ...(url ? { webhookUrl: url } : {}) }, 'Non sono riuscito a salvare il webhook di Discord.');
+    await this.fn('discord-settings', url ? discordBody.set(projectId, url) : discordBody.remove(projectId), 'Non sono riuscito a salvare il webhook di Discord.');
   }
 
   async sendDiscordTest(projectId: string): Promise<void> {
-    await this.fn('discord-settings', { projectId, action: 'test' }, 'Non sono riuscito a inviare il messaggio di prova.');
+    await this.fn('discord-settings', discordBody.test(projectId), 'Non sono riuscito a inviare il messaggio di prova.');
   }
 
   // ---- realtime -----------------------------------------------------------------------
@@ -704,12 +701,12 @@ export class SupabaseData implements DataService {
     const { projectId } = args;
     const channel = this.sb.channel(`rs-${projectId ?? 'user'}-${Math.random().toString(36).slice(2, 8)}`);
     const tables = projectId
-      ? ['cards', 'card_comments', 'card_categories', 'activity_log', 'versions', 'conflicts', 'file_claims', 'project_members']
+      ? ['cards', 'card_comments', 'activity_log', 'versions', 'conflicts', 'file_claims', 'project_members']
       : ['notifications', 'project_members'];
     for (const table of tables) {
       channel.on(
         'postgres_changes',
-        { event: '*', schema: 'public', table, ...(projectId && table !== 'card_comments' ? { filter: `project_id=eq.${projectId}` } : {}) },
+        { event: '*', schema: 'public', table, ...(projectId ? { filter: `project_id=eq.${projectId}` } : {}) },
         (payload) => {
           const row = (payload.new && Object.keys(payload.new).length ? payload.new : payload.old) as Row;
           handler({ table: REALTIME_TABLES[table]!, projectId: strOrNull(row?.project_id) ?? projectId ?? null });

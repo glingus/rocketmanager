@@ -6,7 +6,7 @@
 }
 .row {
   display: grid;
-  grid-template-columns: minmax(150px, 1.05fr) repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(150px, 0.9fr) repeat(3, minmax(0, 1fr));
   border-bottom: 1px solid var(--line);
 }
 .head {
@@ -43,8 +43,9 @@
 }
 .head .col strong {
   font-size: var(--text-lg);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 .head .col span {
   font-family: var(--font-body);

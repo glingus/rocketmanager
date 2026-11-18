@@ -57,7 +57,7 @@
   --steel-200: #dcd8d0;
   --steel-300: #c6c1b7;
   --steel-400: #a9a398;
-  --steel-500: #8a8479;
+  --steel-500: #7c766b;
   --steel-700: #4d4842;
 
   /* Brass: active state / focus */
@@ -118,16 +118,19 @@
 
   /* Cherry wood surfaces (layered: grain over tone) */
   --wood-cherry:
+    radial-gradient(120% 140% at 50% 0%, transparent 55%, rgba(30, 8, 3, 0.34) 100%),
+    linear-gradient(180deg, rgba(255, 214, 172, 0.13) 0%, rgba(255, 214, 172, 0.02) 38%, rgba(20, 5, 2, 0.2) 100%),
+    var(--grain-fine-h),
     var(--grain-h),
-    repeating-linear-gradient(180deg, rgba(255, 190, 150, 0.05) 0 9px, rgba(0, 0, 0, 0.05) 9px 11px),
-    linear-gradient(180deg, rgba(255, 200, 160, 0.14), rgba(0, 0, 0, 0.16)),
-    linear-gradient(90deg, #7b2b19 0%, #90391f 38%, #7a2a18 66%, #8a351f 100%);
+    linear-gradient(90deg, #7d2c1a 0%, #8c3720 30%, #833019 62%, #7a2a18 100%);
   --wood-cherry-vertical:
+    radial-gradient(140% 90% at 0% 50%, transparent 50%, rgba(30, 8, 3, 0.36) 100%),
+    linear-gradient(90deg, rgba(255, 214, 172, 0.11) 0%, rgba(255, 214, 172, 0.02) 40%, rgba(20, 5, 2, 0.22) 100%),
+    var(--grain-fine-v),
     var(--grain-v),
-    repeating-linear-gradient(90deg, rgba(255, 190, 150, 0.05) 0 9px, rgba(0, 0, 0, 0.05) 9px 11px),
-    linear-gradient(90deg, rgba(255, 200, 160, 0.12), rgba(0, 0, 0, 0.2)),
-    linear-gradient(180deg, #7b2b19 0%, #8f3a22 45%, #6f2515 100%);
+    linear-gradient(180deg, #7d2c1a 0%, #8b3620 40%, #7a2a18 100%);
   --wood-walnut:
+    var(--grain-fine-h),
     var(--grain-h),
     linear-gradient(180deg, rgba(255, 220, 190, 0.07), rgba(0, 0, 0, 0.2)),
     linear-gradient(90deg, #3a281b, #46311f 50%, #36251a);
@@ -197,8 +200,9 @@
 
 :root {
   /* Procedural wood grain: SVG feTurbulence stretched along one axis. No external images. */
-  --grain-h: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='320'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence stitchTiles='stitch' type='fractalNoise' baseFrequency='0.004 0.2' numOctaves='3' seed='11' result='n'/%3E%3CfeColorMatrix in='n' type='matrix' values='0 0 0 0 0.1 0 0 0 0 0.03 0 0 0 0 0.01 2.2 0 0 0 -0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url%28%23g%29'/%3E%3C/svg%3E");
-  --grain-v: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='640'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence stitchTiles='stitch' type='fractalNoise' baseFrequency='0.2 0.004' numOctaves='3' seed='7' result='n'/%3E%3CfeColorMatrix in='n' type='matrix' values='0 0 0 0 0.1 0 0 0 0 0.03 0 0 0 0 0.01 2.2 0 0 0 -0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url%28%23g%29'/%3E%3C/svg%3E");
-  --grain-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='160'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence stitchTiles='stitch' type='fractalNoise' baseFrequency='0.003 0.5' numOctaves='3' seed='3' result='n'/%3E%3CfeColorMatrix in='n' type='matrix' values='0 0 0 0 0.95 0 0 0 0 0.75 0 0 0 0 0.6 1.6 0 0 0 -0.95'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url%28%23g%29'/%3E%3C/svg%3E");
-  --paper-fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence stitchTiles='stitch' type='fractalNoise' baseFrequency='0.8' numOctaves='3' seed='5' result='n'/%3E%3CfeColorMatrix in='n' type='matrix' values='0 0 0 0 0.45 0 0 0 0 0.33 0 0 0 0 0.2 0.5 0 0 0 -0.12'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url%28%23g%29'/%3E%3C/svg%3E");
+  --grain-h: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='960' height='240'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0016 0.075' numOctaves='2' seed='11' stitchTiles='stitch' result='n'/%3E%3CfeColorMatrix in='n' type='matrix' values='0 0 0 0 0.16 0 0 0 0 0.05 0 0 0 0 0.02 0.9 0 0 0 -0.36'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url%28%23g%29'/%3E%3C/svg%3E");
+  --grain-v: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='960'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.075 0.0016' numOctaves='2' seed='7' stitchTiles='stitch' result='n'/%3E%3CfeColorMatrix in='n' type='matrix' values='0 0 0 0 0.16 0 0 0 0 0.05 0 0 0 0 0.02 0.9 0 0 0 -0.36'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url%28%23g%29'/%3E%3C/svg%3E");
+  --grain-fine-h: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='960' height='240'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0009 0.34' numOctaves='1' seed='3' stitchTiles='stitch' result='n'/%3E%3CfeColorMatrix in='n' type='matrix' values='0 0 0 0 1.0 0 0 0 0 0.78 0 0 0 0 0.62 0.7 0 0 0 -0.33'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url%28%23g%29'/%3E%3C/svg%3E");
+  --grain-fine-v: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='960'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.34 0.0009' numOctaves='1' seed='5' stitchTiles='stitch' result='n'/%3E%3CfeColorMatrix in='n' type='matrix' values='0 0 0 0 1.0 0 0 0 0 0.78 0 0 0 0 0.62 0.7 0 0 0 -0.33'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url%28%23g%29'/%3E%3C/svg%3E");
+  --paper-fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' seed='5' stitchTiles='stitch' result='n'/%3E%3CfeColorMatrix in='n' type='matrix' values='0 0 0 0 0.45 0 0 0 0 0.33 0 0 0 0 0.2 0.5 0 0 0 -0.12'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url%28%23g%29'/%3E%3C/svg%3E");
 }

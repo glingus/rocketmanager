@@ -10,6 +10,7 @@ import { ThreeWayTable } from './ThreeWayTable';
 import { ChoicePanel } from './ChoicePanel';
 import { buildConflictRows, summarizeRows } from '../../lib/utils/conflictRows';
 import { useApiMutation } from '../../app/useApiMutation';
+import { stashResolution } from '../../app/resolutionStash';
 import { QueryErrorBox } from '../shared/QueryErrorBox';
 import { formatRelative } from '../../lib/utils/format';
 import { it } from '../../i18n/it';
@@ -28,12 +29,12 @@ export function ConflictResolverPage() {
   const [confirming, setConfirming] = useState(false);
 
   const resolve = useApiMutation(
-    () =>
-      backend.resolveConflict({
-        projectId: project.id,
-        conflictId,
-        resolutions: (query.data?.files ?? []).map((f) => ({ path: f.path, choice: choices[f.path]! })),
-      }),
+    () => {
+      const resolutions = (query.data?.files ?? []).map((f) => ({ path: f.path, choice: choices[f.path]! }));
+      // The shared record keeps the choices: the `conflict-resolved` event does not carry them.
+      stashResolution(conflictId, resolutions);
+      return backend.resolveConflict({ projectId: project.id, conflictId, resolutions });
+    },
     {
       errorTitle: it.conflicts.confirm,
       onSuccess: (s) => {

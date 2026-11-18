@@ -3,7 +3,10 @@ import { Sidebar } from './Sidebar';
 import { NotificationCenter } from './NotificationCenter';
 import { EventBridge } from './EventBridge';
 import { ErrorBoundary } from './ErrorBoundary';
-import { Simulator } from './Simulator';
+import { Suspense, lazy } from 'react';
+import { backend } from '../lib/backend';
+
+const Simulator = lazy(() => import('./Simulator').then((m) => ({ default: m.Simulator })));
 import { ToastViewport, WifiOff } from '../ui';
 import { useUi } from './uiStore';
 import { it } from '../i18n/it';
@@ -31,7 +34,11 @@ export function AppShell() {
       </main>
       <NotificationCenter />
       <EventBridge />
-      <Simulator />
+      {backend.kind === 'mock' && (
+        <Suspense fallback={null}>
+          <Simulator />
+        </Suspense>
+      )}
       <ToastViewport />
     </div>
   );

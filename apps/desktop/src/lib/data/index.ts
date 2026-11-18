@@ -1,7 +1,5 @@
 import { backend } from '../backend';
 import type { DataService } from './types';
-import { getMockData } from './mock';
-import { SupabaseData, readSupabaseConfig } from './supabase';
 
 export type { DataService } from './types';
 
@@ -11,8 +9,9 @@ function chooseKind(): 'mock' | 'supabase' {
   return backend.kind === 'mock' ? 'mock' : 'supabase';
 }
 
-function create(): DataService {
-  if (chooseKind() === 'mock') return getMockData();
+async function create(): Promise<DataService> {
+  if (chooseKind() === 'mock') return (await import('./mock')).getMockData();
+  const { SupabaseData, readSupabaseConfig } = await import('./supabase');
   const config = readSupabaseConfig();
   if (!config) {
     throw new Error('Configurazione mancante: imposta VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY (vedi .env.example).');
@@ -21,4 +20,4 @@ function create(): DataService {
 }
 
 /** The data layer used by the whole UI (Supabase, or the in-memory mock in development). */
-export const data: DataService = create();
+export const data: DataService = await create();

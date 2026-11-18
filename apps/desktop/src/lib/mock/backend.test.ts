@@ -303,7 +303,7 @@ describe('mock data service', () => {
     const { data, world } = await setup();
     const unread = await data.unreadNotificationCount();
     expect(unread).toBeGreaterThan(0);
-    await data.emitEvent(EXP, 'conflict.detected', { files: 'x' }); // by me: no notification
+    await data.emitEvent(EXP, 'conflict.detected', { files: ['x'], fileCount: 1 }); // by me: no notification
     expect(await data.unreadNotificationCount()).toBe(unread);
     controls.colleaguePublish(world, AURORA);
     expect(await data.unreadNotificationCount()).toBe(unread + 1);

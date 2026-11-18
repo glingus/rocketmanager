@@ -11,6 +11,7 @@ import { useUi } from './uiStore';
 import { useProjects } from './hooks';
 import { errorMessage } from './errors';
 import { useSession } from './session';
+import { takeResolution } from './resolutionStash';
 
 function machineId(): string {
   try {
@@ -62,7 +63,7 @@ export function EventBridge() {
         }
       }
       for (const path of before) {
-        if (!now.has(path)) void data.releaseFile({ projectId: s.projectId, path, kind: 'editing', machineId: mid }).catch(() => undefined);
+        if (!now.has(path)) void data.releaseFile({ projectId: s.projectId, path, kind: 'editing' }).catch(() => undefined);
       }
       claimed.current.set(s.projectId, now);
     };
@@ -109,7 +110,7 @@ export function EventBridge() {
               conflictId: e.conflictId,
               files: conflict.files.map((f) => ({ path: f.path, kind: f.kind })),
               theirsVersion: conflict.theirsVersion,
-              theirsUserLogin: theirs?.githubLogin ?? null,
+              theirsUserId: theirs?.id ?? null,
             });
           } catch {
             /* the conflict stays local; the core retries through the status events */
@@ -123,7 +124,7 @@ export function EventBridge() {
         }
         void qc.invalidateQueries({ queryKey: qk.conflicts(e.projectId) });
         void data
-          .resolveConflictRecord({ projectId: e.projectId, conflictId: e.conflictId, resolution: [], resolvedVersion: e.number })
+          .resolveConflictRecord({ projectId: e.projectId, conflictId: e.conflictId, resolution: takeResolution(e.conflictId), resolvedVersion: e.number })
           .catch(() => undefined);
       }),
       backend.on('stale-save-suspected', (e) => {
@@ -145,7 +146,7 @@ export function EventBridge() {
           return;
         }
         toast.error(it.toasts.syncError, { message: errorMessage(e.error), duration: 9000 });
-        void data.emitEvent(e.projectId, 'sync.error', { message: e.error.message }, []).catch(() => undefined);
+        void data.emitEvent(e.projectId, 'sync.error', { message: e.error.message }).catch(() => undefined);
       }),
     ];
 
@@ -202,9 +203,8 @@ export function EventBridge() {
     const offs = projectIds.split('|').map((projectId) =>
       data.subscribe({ projectId }, (change) => {
         const map: Record<string, unknown[][]> = {
-          cards: [qk.cards(projectId) as unknown as unknown[]],
-          card_comments: [['comments'], ['attachments'], qk.cards(projectId) as unknown as unknown[]],
-          card_categories: [qk.categories(projectId) as unknown as unknown[]],
+          cards: [qk.cards(projectId) as unknown as unknown[], qk.categories(projectId) as unknown as unknown[]],
+          card_comments: [['comments'], ['attachments']],
           activity_log: [['activity', projectId]],
           versions: [qk.versions(projectId) as unknown as unknown[]],
           conflicts: [qk.conflictRecords(projectId) as unknown as unknown[]],

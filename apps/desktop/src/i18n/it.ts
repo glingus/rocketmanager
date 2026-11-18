@@ -342,7 +342,7 @@ export const it = {
     never: 'mai',
     headVersion: 'Versione locale',
     remoteVersion: 'Versione sul server',
-    repoSize: 'Dimensione del repository',
+    repoSize: 'Dimensione repo',
     unpublished: {
       title: 'Modifiche non pubblicate',
       subtitle: (n: number) => `${n} ${plural(n, 'file modificato', 'file modificati')} dall\u2019ultima versione`,
@@ -589,7 +589,7 @@ export const it = {
       modifiedDeleted: 'Modificato da te, rimosso dal collega',
       deletedModified: 'Rimosso da te, modificato dal collega',
     },
-    columns: { base: 'Versione di partenza', mine: 'La mia', theirs: 'La sua' },
+    columns: { base: 'Di partenza', mine: 'La mia', theirs: 'La sua' },
     columnHint: {
       base: 'Com\u2019era prima che entrambi cambiaste qualcosa',
       mine: 'Quello che hai salvato tu',

@@ -70,7 +70,7 @@ export interface DataService {
     conflictId: string;
     files: { path: string; kind: string }[];
     theirsVersion: number | null;
-    theirsUserLogin: string | null;
+    theirsUserId: string | null;
   }): Promise<void>;
   resolveConflictRecord(args: {
     projectId: string;
@@ -89,7 +89,7 @@ export interface DataService {
     machineId: string;
     expiresAt?: string | null;
   }): Promise<void>;
-  releaseFile(args: { projectId: string; path: string; kind: ClaimKind; machineId: string }): Promise<void>;
+  releaseFile(args: { projectId: string; path: string; kind: ClaimKind }): Promise<void>;
   heartbeatClaims(projectId: string, machineId: string): Promise<void>;
 
   // notes and tasks
