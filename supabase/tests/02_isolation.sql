@@ -5,7 +5,7 @@ select tests.prepare();
 
 select tests.create_user('anna') as anna \gset
 select tests.create_user('bruno') as bruno \gset
-select tests.create_user('carla') as carla \gset      -- membro solo del progetto B
+select tests.create_user('carla') as carla \gset
 select tests.create_user('estraneo') as estraneo \gset
 
 select tests.create_project('Progetto A', :'anna') as pa \gset
