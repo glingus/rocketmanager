@@ -118,10 +118,10 @@ function NotificationPrefs() {
                     <Badge tone={t.importance === 'critical' ? 'red' : t.importance === 'important' ? 'amber' : 'neutral'}>{it.notifications.importance[t.importance]}</Badge>
                   </td>
                   <td className={styles.center}>
-                    <Switch checked={pref.inApp} onChange={(v) => save.mutate({ ...pref, inApp: v })} label={`${t.labelIt}: ${it.appSettings.notifications.inApp}`} />
+                    <Switch checked={pref.inApp} onChange={(v) => save.mutate({ ...pref, inApp: v })} label={`${t.labelIt}: ${it.appSettings.notifications.inApp}`} hideLabel />
                   </td>
                   <td className={styles.center}>
-                    <Switch checked={pref.desktop} onChange={(v) => save.mutate({ ...pref, desktop: v })} label={`${t.labelIt}: ${it.appSettings.notifications.desktop}`} />
+                    <Switch checked={pref.desktop} onChange={(v) => save.mutate({ ...pref, desktop: v })} label={`${t.labelIt}: ${it.appSettings.notifications.desktop}`} hideLabel />
                   </td>
                 </tr>
               );

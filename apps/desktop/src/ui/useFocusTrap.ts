@@ -1,5 +1,8 @@
 import { useEffect, type RefObject } from 'react';
 
+/** Open overlays, innermost last: Escape closes only the top one, wherever the focus is. */
+const stack: Array<() => void> = [];
+
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -13,12 +16,17 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, onClose: () => 
     const first = root.querySelector<HTMLElement>('[data-autofocus]') ?? root.querySelector<HTMLElement>(FOCUSABLE) ?? root;
     first.focus({ preventScroll: true });
 
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+    const close = () => onClose();
+    stack.push(close);
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && stack[stack.length - 1] === close) {
         e.stopPropagation();
-        onClose();
-        return;
+        close();
       }
+    };
+    document.addEventListener('keydown', onEscape);
+
+    const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
       const items = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
       if (items.length === 0) {
@@ -38,6 +46,9 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, onClose: () => 
     root.addEventListener('keydown', onKey);
     return () => {
       root.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onEscape);
+      const idx = stack.indexOf(close);
+      if (idx >= 0) stack.splice(idx, 1);
       previous?.focus?.({ preventScroll: true });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

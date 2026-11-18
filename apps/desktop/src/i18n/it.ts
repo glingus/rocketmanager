@@ -151,6 +151,7 @@ export const it = {
     exported: (n: number) => `${n} ${plural(n, 'file esportato', 'file esportati')}`,
     openedCopy: 'Copia aperta in OpenRocket',
     synced: 'Controllo completato',
+    linked: (name: string) => `${name} collegato a questo PC`,
   },
 
   // ---- Onboarding -------------------------------------------------------------
@@ -335,8 +336,8 @@ export const it = {
 
   overview: {
     stateTitle: 'Stato della sincronizzazione',
-    lastFetch: (t: string) => `Ultimo controllo: ${t}`,
-    lastPublish: (t: string) => `Ultima pubblicazione: ${t}`,
+    lastFetchLabel: 'Ultimo controllo',
+    lastPublishLabel: 'Ultima pubblicazione',
     never: 'mai',
     headVersion: 'Versione locale',
     remoteVersion: 'Versione sul server',
@@ -357,7 +358,7 @@ export const it = {
       discardText: (n: number) =>
         `${n === 1 ? 'Il file tornerà com\u2019era' : 'I file torneranno com\u2019erano'} nell\u2019ultima versione. Prima salvo una copia di sicurezza completa della cartella, quindi non perdi nulla.`,
       discardConfirm: 'Scarta modifiche',
-      autoIn: (t: string) => `Pubblicazione automatica tra ${t}`,
+      autoLabel: 'Pubblicazione automatica tra',
       autoHint: 'Parte dopo 10 minuti senza nuovi salvataggi.',
       autoNow: 'Pubblicazione automatica in corso…',
       manualHint: 'La politica di questo progetto è “solo manuale”: pubblica quando sei pronto.',
@@ -413,7 +414,7 @@ export const it = {
       reserveUntil: 'Fino a',
       reserveHint: 'Chi apre il file riceve un avviso, ma non è mai bloccato.',
       release: 'Rilascia',
-      reserved: 'Prenotazione registrata',
+      reserveDone: 'Prenotazione registrata',
       released: 'Prenotazione rimossa',
     },
     update: {
@@ -598,6 +599,7 @@ export const it = {
     independentTitle: 'Le modifiche non si sovrappongono',
     independentText: 'Avete toccato parti diverse del razzo. In questa versione non unisco i file .ork da solo: scegli quale tenere, oppure uniscili a mano in OpenRocket.',
     independentBoth: 'Puoi anche tenere entrambe le copie come due file separati.',
+    onlyOverlaps: 'Mostra solo le sovrapposizioni',
     overlapLabel: 'Sovrapposizione',
     independentLabel: 'Indipendente',
     onlyMine: 'Solo tua',

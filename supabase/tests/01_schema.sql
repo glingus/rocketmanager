@@ -52,7 +52,7 @@ select ok(not has_table_privilege('authenticated', 'public.notification_events',
 select ok(not has_schema_privilege('authenticated', 'private', 'usage'), 'authenticated senza uso dello schema private');
 select ok(not has_table_privilege('authenticated', 'private.discord_webhooks', 'select'), 'webhook Discord non leggibili');
 select ok(not has_function_privilege('authenticated', 'public.emit_event_server(uuid,text,jsonb,uuid,uuid[])', 'execute'), 'emit_event_server non eseguibile dal client');
-select ok(not has_function_privilege('authenticated', 'public.create_project_record(text,text,text,text,text,bigint,text,uuid)', 'execute'), 'create_project_record non eseguibile dal client');
+select ok(not has_function_privilege('authenticated', 'public.create_project_record(text,text,text,text,text,bigint,text,uuid,uuid)', 'execute'), 'create_project_record non eseguibile dal client');
 select ok(has_function_privilege('service_role', 'public.emit_event_server(uuid,text,jsonb,uuid,uuid[])', 'execute'), 'emit_event_server eseguibile dal server');
 select ok(not has_function_privilege('anon', 'public.emit_event(uuid,text,jsonb,uuid[])', 'execute'), 'anon non emette eventi');
 select ok(has_column_privilege('authenticated', 'public.projects', 'name', 'update'), 'name aggiornabile');

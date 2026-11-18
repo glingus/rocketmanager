@@ -15,7 +15,7 @@ import type {
   ProjectWithRole,
 } from '../types/data';
 import type { DataService, RealtimeHandler } from './types';
-import { MockWorld, getMockWorld } from '../mock';
+import { getMockWorld, type MockWorld } from '../mock';
 import { appError } from '../mock/errors';
 import { defaultCategories } from '../mock/seed';
 import { makeSha } from '../mock/repo';

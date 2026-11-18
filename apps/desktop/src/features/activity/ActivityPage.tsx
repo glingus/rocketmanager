@@ -57,6 +57,7 @@ export function ActivityPage() {
       g.entries.push(e);
     }
     return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [log.data]);
 
   return (

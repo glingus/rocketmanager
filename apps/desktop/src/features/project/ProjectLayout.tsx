@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { createContext, useContext } from 'react';
 import { PageHeader } from '../../app/PageHeader';
 import { useLocalProjects, useProject, useProjectStatus } from '../../app/hooks';
-import { Badge, Button, EmptyState, FolderOpen, GitMerge, History, ListChecks, RefreshCw, ScrollText, Settings, StickyNote, SyncStateLamp, TabNav, TriangleAlert, Users, LayoutDashboard } from '../../ui';
+import { Badge, Button, EmptyState, FolderOpen, GitMerge, History, RefreshCw, ScrollText, Settings, StickyNote, SyncStateLamp, TabNav, TriangleAlert, Users, LayoutDashboard } from '../../ui';
 import type { ProjectWithRole } from '../../lib/types/data';
 import type { ProjectStatus } from '../../lib/types/ipc';
 import { it } from '../../i18n/it';
@@ -117,8 +117,3 @@ export function ProjectLayout() {
   );
 }
 
-export function useIsOnline(): boolean {
-  return useUi((s) => s.offlineSince == null);
-}
-
-export { ListChecks };

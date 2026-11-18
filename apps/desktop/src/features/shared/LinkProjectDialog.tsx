@@ -22,7 +22,7 @@ export function LinkProjectDialog({ project, open, onClose }: { project: Project
         qc.setQueryData(qk.status(project.id), status);
         void qc.invalidateQueries({ queryKey: qk.localProjects });
         void qc.invalidateQueries({ queryKey: qk.versions(project.id) });
-        toast.success(it.project.notLinkedAction, { message: status.folder ?? undefined });
+        toast.success(it.toasts.linked(project.name), { message: status.folder ?? undefined });
         onClose();
       },
     },

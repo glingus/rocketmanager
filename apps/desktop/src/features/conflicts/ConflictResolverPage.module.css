@@ -199,4 +199,7 @@
   .grid {
     grid-template-columns: 1fr;
   }
+  .right {
+    order: -1;
+  }
 }

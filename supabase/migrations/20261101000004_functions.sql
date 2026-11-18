@@ -314,7 +314,8 @@ create function public.create_project_record(
   p_github_repo text,
   p_github_repo_id bigint,
   p_default_branch text,
-  p_created_by uuid
+  p_created_by uuid,
+  p_id uuid default null
 )
 returns uuid
 language plpgsql
@@ -328,8 +329,8 @@ begin
     raise exception 'Funzione riservata al server' using errcode = '42501';
   end if;
 
-  insert into public.projects (name, slug, description, github_owner, github_repo, github_repo_id, default_branch, created_by)
-  values (p_name, p_slug, coalesce(p_description, ''), p_github_owner, p_github_repo, p_github_repo_id,
+  insert into public.projects (id, name, slug, description, github_owner, github_repo, github_repo_id, default_branch, created_by)
+  values (coalesce(p_id, gen_random_uuid()), p_name, p_slug, coalesce(p_description, ''), p_github_owner, p_github_repo, p_github_repo_id,
           coalesce(p_default_branch, 'main'), p_created_by)
   returning id into v_id;
 
@@ -623,5 +624,127 @@ begin
           '{}'::jsonb,
           20000;
   return v_id;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------------------------
+-- Accesso dalle Edge Functions allo schema `private` (non esposto da PostgREST): solo service_role.
+-- ---------------------------------------------------------------------------------------------
+create function public.set_discord_webhook(p_project_id uuid, p_url text, p_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, private, pg_temp
+as $$
+begin
+  if coalesce(auth.role(), 'service_role') <> 'service_role' then
+    raise exception 'Funzione riservata al server' using errcode = '42501';
+  end if;
+  insert into private.discord_webhooks (project_id, url) values (p_project_id, p_url)
+  on conflict (project_id) do update set url = excluded.url, updated_at = now();
+  update public.project_discord_settings
+     set webhook_configured = true, updated_by = p_user_id
+   where project_id = p_project_id;
+end;
+$$;
+
+create function public.remove_discord_webhook(p_project_id uuid, p_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, private, pg_temp
+as $$
+begin
+  if coalesce(auth.role(), 'service_role') <> 'service_role' then
+    raise exception 'Funzione riservata al server' using errcode = '42501';
+  end if;
+  delete from private.discord_webhooks where project_id = p_project_id;
+  update public.project_discord_settings
+     set webhook_configured = false, updated_by = p_user_id
+   where project_id = p_project_id;
+  -- I messaggi ancora in coda non hanno più dove andare.
+  delete from private.discord_outbox where project_id = p_project_id and status = 'pending';
+end;
+$$;
+
+create function public.get_discord_webhook(p_project_id uuid)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = public, private, pg_temp
+as $$
+declare
+  v_url text;
+begin
+  if coalesce(auth.role(), 'service_role') <> 'service_role' then
+    raise exception 'Funzione riservata al server' using errcode = '42501';
+  end if;
+  select url into v_url from private.discord_webhooks where project_id = p_project_id;
+  return v_url;
+end;
+$$;
+
+-- Prende in carico i messaggi da inviare: li "affitta" per 5 minuti (next_attempt_at) così due
+-- esecuzioni ravvicinate di discord-dispatch non inviano due volte lo stesso messaggio.
+create function public.claim_discord_outbox(p_now timestamptz, p_limit integer default 200)
+returns table (id bigint, project_id uuid, summary text, payload jsonb, attempts integer, created_at timestamptz)
+language plpgsql
+security definer
+set search_path = public, private, pg_temp
+as $$
+begin
+  if coalesce(auth.role(), 'service_role') <> 'service_role' then
+    raise exception 'Funzione riservata al server' using errcode = '42501';
+  end if;
+  return query
+    update private.discord_outbox o
+       set next_attempt_at = p_now + interval '5 minutes'
+     where o.id in (
+       select q.id from private.discord_outbox q
+        where q.status = 'pending' and q.next_attempt_at <= p_now
+        order by q.id
+        limit greatest(p_limit, 1)
+        for update skip locked
+     )
+    returning o.id, o.project_id, o.summary, o.payload, o.attempts, o.created_at;
+end;
+$$;
+
+create function public.mark_discord_sent(p_ids bigint[], p_now timestamptz default now())
+returns void
+language plpgsql
+security definer
+set search_path = public, private, pg_temp
+as $$
+begin
+  if coalesce(auth.role(), 'service_role') <> 'service_role' then
+    raise exception 'Funzione riservata al server' using errcode = '42501';
+  end if;
+  update private.discord_outbox
+     set status = 'sent', sent_at = p_now, last_error = null, attempts = attempts + 1
+   where id = any (p_ids);
+end;
+$$;
+
+create function public.mark_discord_failed(
+  p_ids bigint[], p_attempts integer, p_status text, p_next_attempt_at timestamptz, p_error text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, private, pg_temp
+as $$
+begin
+  if coalesce(auth.role(), 'service_role') <> 'service_role' then
+    raise exception 'Funzione riservata al server' using errcode = '42501';
+  end if;
+  if p_status not in ('pending', 'failed') then
+    raise exception 'Stato non valido' using errcode = '22023';
+  end if;
+  update private.discord_outbox
+     set attempts = p_attempts, status = p_status, next_attempt_at = p_next_attempt_at,
+         last_error = left(p_error, 500)
+   where id = any (p_ids);
 end;
 $$;

@@ -16,7 +16,7 @@ import styles from './ClaimsPanel.module.css';
 const STALE_MS = 10 * 60_000;
 
 export function ClaimsPanel({ projectId }: { projectId: string }) {
-  const versions = useQuery({ queryKey: qk.versions(projectId), queryFn: () => backend.listVersions({ projectId }) });
+  const versions = useQuery({ queryKey: [...qk.versions(projectId), 'all'], queryFn: () => backend.listVersions({ projectId }) });
   const files = [...new Set((versions.data ?? []).flatMap((v) => v.files.map((f) => f.path)))].sort();
   const query = useQuery({ queryKey: qk.claims(projectId), queryFn: () => data.listFileClaims(projectId), refetchInterval: 30_000 });
   const { byId } = useProfiles();

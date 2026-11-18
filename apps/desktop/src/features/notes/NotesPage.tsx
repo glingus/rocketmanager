@@ -29,10 +29,10 @@ export function NotesPage() {
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const readOnly = offline || !!project.archivedAt;
 
-  const versions = useQuery({ queryKey: qk.versions(project.id), queryFn: () => backend.listVersions({ projectId: project.id }), enabled: linked });
+  const versions = useQuery({ queryKey: [...qk.versions(project.id), 'all'], queryFn: () => backend.listVersions({ projectId: project.id }), enabled: linked });
   const versionNumbers = (versions.data ?? []).map((v) => v.number).filter((n): n is number => n != null && n > 0);
 
-  const all = notes.cards.data ?? [];
+  const all = useMemo(() => notes.cards.data ?? [], [notes.cards.data]);
   const visible = useMemo(() => filterCards(all, filters), [all, filters]);
   const filtered = visible.length !== all.filter((c) => filters.showArchived || c.status !== 'archived').length || Object.values(filters).some(Boolean);
   const open = openId ? all.find((c) => c.id === openId) : undefined;

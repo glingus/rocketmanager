@@ -19,7 +19,7 @@ export function HistoryPage() {
   const [compare, setCompare] = useState(false);
 
   const query = useInfiniteQuery({
-    queryKey: qk.versions(project.id),
+    queryKey: [...qk.versions(project.id), 'pages'],
     enabled: linked,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => backend.listVersions({ projectId: project.id, limit: PAGE, ...(pageParam ? { beforeSha: pageParam } : {}) }),

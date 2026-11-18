@@ -1,7 +1,7 @@
 export { Button, type ButtonProps } from './Button';
 export { IconButton } from './IconButton';
 export { Panel } from './Panel';
-export { WoodHeader } from './WoodHeader';
+export { WoodHeader, type WoodHeaderProps } from './WoodHeader';
 export { StatusLamp, SyncStateLamp } from './StatusLamp';
 export { Badge, type BadgeTone } from './Badge';
 export { Tabs, TabNav, type TabItem } from './Tabs';

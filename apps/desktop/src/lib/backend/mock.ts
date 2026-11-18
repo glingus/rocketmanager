@@ -4,11 +4,12 @@ import type {
   AuthStatus,
   BackendEventName,
   BackendEvents,
+  FileResolution,
   ProjectStatus,
   PublishPolicy,
 } from '../types/ipc';
 import type { Backend } from './types';
-import { MockWorld, getMockWorld } from '../mock';
+import { getMockWorld, type MockWorld } from '../mock';
 import { errors } from '../mock/errors';
 
 const LATENCY = 90;
@@ -239,7 +240,7 @@ export class MockBackend implements Backend {
     this.world.sim(args.projectId).getConflict(args.conflictId);
     this.world.openedCopies.push(`${args.conflictId}:${args.side}:${args.path}`);
   }
-  async resolveConflict(args: { projectId: string; conflictId: string; resolutions: import('../types/ipc').FileResolution[] }) {
+  async resolveConflict(args: { projectId: string; conflictId: string; resolutions: FileResolution[] }) {
     await this.ready();
     return this.world.sim(args.projectId).resolve(args.conflictId, args.resolutions);
   }

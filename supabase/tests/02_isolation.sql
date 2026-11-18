@@ -1,6 +1,6 @@
 -- Un non membro non vede nulla; i dati di un progetto non compaiono in un altro.
 begin;
-select plan(34);
+select plan(31);
 select tests.prepare();
 
 select tests.create_user('anna') as anna \gset
@@ -27,7 +27,7 @@ insert into public.conflicts (id, project_id, files, ours_user_id, remote_branch
 insert into public.file_claims (project_id, user_id, path, kind, machine_id)
   values (:'pa', :'anna', 'Razzo.ork', 'editing', 'pc-anna');
 insert into public.project_invitations (project_id, github_login, invited_by) values (:'pa', 'estraneo', :'anna');
-select public.emit_event_server(:'pa', 'version.published', '{"number":1}', :'anna');
+select public.emit_event_server(:'pa', 'version.published', '{"number":1}', :'anna') as _ev \gset
 insert into storage.objects (bucket_id, name, owner_id) values ('attachments', :'pa' || '/' || :'card_a' || '/x-foto.png', :'anna');
 
 -- ---- Estraneo (utente autenticato non membro di nulla) ------------------------------------

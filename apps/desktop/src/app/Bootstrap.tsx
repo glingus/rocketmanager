@@ -17,6 +17,10 @@ export function Bootstrap() {
       try {
         const status = await backend.authStatus();
         if (status.supabaseSession) await data.setSession(status.supabaseSession).catch(() => undefined);
+        // Demo mode (?ready=1) starts from the finished onboarding.
+        if (status.signedIn && backend.kind === 'mock' && new URLSearchParams(window.location.search).get('ready') === '1') {
+          useSession.getState().setOnboarded(true);
+        }
         if (!cancelled) setAuth(status);
       } catch {
         if (!cancelled) setAuth({ signedIn: false, user: null, supabaseSession: null });

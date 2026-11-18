@@ -81,3 +81,11 @@
   color: var(--ink-900);
   background: rgba(93, 78, 66, 0.08);
 }
+
+@media (max-width: 1100px) {
+  .tab {
+    padding: 0 10px;
+    font-size: var(--text-md);
+    gap: 5px;
+  }
+}

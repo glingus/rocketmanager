@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMatch } from 'react-router-dom';
 import { backend } from '../lib/backend';
 import { getMockWorld } from '../lib/mock';
-import { controls, installGlobalControls } from '../lib/mock/controls';
+import { controls } from '../lib/mock/controls';
 import { Button, Wrench, X, toast } from '../ui';
 import { it } from '../i18n/it';
 import { useUi } from './uiStore';
@@ -21,7 +21,6 @@ export function Simulator() {
   if (backend.kind !== 'mock' || params.get('nodev') === '1') return null;
 
   const world = getMockWorld();
-  installGlobalControls(world);
   const linked = projectId && local.some((l) => l.projectId === projectId) ? projectId : undefined;
 
   const run = (fn: () => void) => {

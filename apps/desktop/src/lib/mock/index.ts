@@ -1,6 +1,7 @@
 import { MockWorld, type WorldOptions } from './world';
 import { DEFAULT_FOLDERS, applyReadyScenario, seedWorld } from './scenario';
 import { PROJECT_IDS } from './seed';
+import { installGlobalControls } from './controls';
 
 export { MockWorld, PROJECT_IDS, DEFAULT_FOLDERS };
 export type { WorldOptions };
@@ -37,7 +38,10 @@ export function getMockWorld(): MockWorld {
     const ready = params.get('ready') === '1' || params.get('mock') === 'ready';
     const instant = params.get('instant') === '1';
     singleton = createMockWorld({ seed: ready ? 'ready' : 'fresh', speed: instant ? 0 : 1, persist: !ready });
-    if (typeof window !== 'undefined') (window as unknown as { __mockWorld?: MockWorld }).__mockWorld = singleton;
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __mockWorld?: MockWorld }).__mockWorld = singleton;
+      installGlobalControls(singleton);
+    }
   }
   return singleton;
 }

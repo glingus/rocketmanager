@@ -86,3 +86,13 @@
   padding-top: 14px;
   border-top: 1px dashed var(--line-strong);
 }
+
+@media (max-width: 1100px) {
+  .panel {
+    position: static;
+  }
+  .options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}

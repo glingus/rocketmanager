@@ -3,7 +3,7 @@ import { Check } from './icons';
 import styles from './Controls.module.css';
 
 /** Metal toggle switch. */
-export function Switch({ checked, onChange, label, description, disabled, id }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: ReactNode; disabled?: boolean; id?: string }) {
+export function Switch({ checked, onChange, label, description, disabled, id, hideLabel }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: ReactNode; disabled?: boolean; id?: string; hideLabel?: boolean }) {
   const auto = useId();
   const sid = id ?? auto;
   return (
@@ -24,6 +24,7 @@ export function Switch({ checked, onChange, label, description, disabled, id }: 
           {checked ? 'ON' : 'OFF'}
         </span>
       </button>
+      {!hideLabel && (
       <label htmlFor={sid} className={styles.switchLabel}>
         <span>{label}</span>
         {description && (
@@ -32,6 +33,7 @@ export function Switch({ checked, onChange, label, description, disabled, id }: 
           </span>
         )}
       </label>
+      )}
     </div>
   );
 }
