@@ -141,3 +141,55 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<Extracted, OrkError> {
         }
     }
 }
+
+/// Full content of every file entry of a ZIP, keyed by name (directories skipped), or `None` if
+/// the archive cannot be read to the end (truncated, bad CRC, too large).
+fn zip_entries(bytes: &[u8]) -> Option<Vec<(String, Vec<u8>)>> {
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let mut out: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut total: u64 = 0;
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).ok()?;
+        if entry.is_dir() {
+            continue;
+        }
+        let name = entry.name().ok()?.into_owned();
+        total = total.saturating_add(entry.size());
+        if total > MAX_DECOMPRESSED_BYTES {
+            return None;
+        }
+        out.push((name, read_limited(&mut entry).ok()?));
+    }
+    out.sort();
+    Some(out)
+}
+
+/// True if the two files have the same content even if their bytes differ: same container kind
+/// and, for ZIP, the same set of entries with identical decompressed content (timestamps, entry
+/// order and compression level are ignored); for GZIP the decompressed streams; for plain XML the
+/// bytes. If either file cannot be read the comparison is a plain byte comparison.
+pub(crate) fn content_equal(a: &[u8], b: &[u8]) -> bool {
+    if a == b {
+        return true;
+    }
+    let (Some(ca), Some(cb)) = (detect_container(a), detect_container(b)) else {
+        return false;
+    };
+    if ca != cb {
+        return false;
+    }
+    match ca {
+        Container::Xml => false,
+        Container::Gzip => match (
+            read_limited(GzDecoder::new(a)),
+            read_limited(GzDecoder::new(b)),
+        ) {
+            (Ok(x), Ok(y)) => x == y,
+            _ => false,
+        },
+        Container::Zip => match (zip_entries(a), zip_entries(b)) {
+            (Some(x), Some(y)) => x == y,
+            _ => false,
+        },
+    }
+}

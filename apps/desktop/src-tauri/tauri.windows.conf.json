@@ -1,0 +1,24 @@
+{
+  "bundle": {
+    "targets": [
+      "nsis"
+    ],
+    "resources": [
+      "resources/mingit/**/*"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "Italian"
+        ],
+        "displayLanguageSelector": false,
+        "startMenuFolder": "Rocket Sync",
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  }
+}

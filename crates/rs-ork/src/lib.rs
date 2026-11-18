@@ -22,6 +22,14 @@ pub use types::*;
 
 use serde::{Deserialize, Serialize};
 
+/// True if two `.ork` files have the same content even when their bytes differ: same container
+/// kind and, for ZIP, the same set of entries with identical decompressed content (timestamps,
+/// entry order and compression level are ignored); for GZIP the decompressed streams are compared;
+/// for plain XML the bytes. If either file is unreadable the result is a plain byte comparison.
+pub fn content_equal(a: &[u8], b: &[u8]) -> bool {
+    container::content_equal(a, b)
+}
+
 /// Reads the whole file and checks that it is complete and structurally an OpenRocket document.
 ///
 /// Rejects truncated ZIP/GZIP archives (checksum verified on every entry) and XML that is cut

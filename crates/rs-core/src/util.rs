@@ -14,9 +14,13 @@ pub(crate) fn is_rocket_temp(path: &str) -> bool {
     name.ends_with(".ork-bak") || (name.starts_with("orsave") && name.ends_with(".tmp"))
 }
 
-/// Whether the folder of `abs` holds a leftover of an OpenRocket save in progress: a backup
-/// `<name>-bak` of this very file or any `ORSave*.tmp`.
-pub(crate) fn save_in_progress(abs: &Path) -> bool {
+/// Whether the folder of `abs` holds a leftover of an OpenRocket save in progress.
+///
+/// * `deleted = true` (the file is absent): a backup `<name>-bak` of this very file or any
+///   `ORSave*.tmp`, whatever their age: the file is probably just between the two renames.
+/// * `deleted = false`: only an `ORSave*.tmp` modified in the last 10 s (a tmp left behind by a
+///   crash must not block the folder for ever).
+pub(crate) fn save_in_progress(abs: &Path, deleted: bool) -> bool {
     let Some(dir) = abs.parent() else { return false };
     let name = abs
         .file_name()
@@ -26,7 +30,23 @@ pub(crate) fn save_in_progress(abs: &Path) -> bool {
     let Ok(rd) = fs::read_dir(dir) else { return false };
     rd.flatten().any(|e| {
         let n = e.file_name().to_string_lossy().to_lowercase();
-        n == bak || (n.starts_with("orsave") && n.ends_with(".tmp"))
+        if deleted && n == bak {
+            return true;
+        }
+        if n.starts_with("orsave") && n.ends_with(".tmp") {
+            if deleted {
+                return true;
+            }
+            let recent = e
+                .metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| SystemTime::now().duration_since(t).ok())
+                .map(|d| d < Duration::from_secs(10))
+                .unwrap_or(true);
+            return recent;
+        }
+        false
     })
 }
 
@@ -280,13 +300,19 @@ mod tests {
         assert!(!is_rocket_temp("note.tmp.txt"));
         let d = tempfile::tempdir().unwrap();
         let f = d.path().join("Razzo.ork");
-        assert!(!save_in_progress(&f));
+        assert!(!save_in_progress(&f, true));
         fs::write(d.path().join("Razzo.ork-bak"), b"x").unwrap();
-        assert!(save_in_progress(&f));
-        assert!(!save_in_progress(&d.path().join("Altro.ork")));
+        assert!(save_in_progress(&f, true), "absent file with a backup");
+        assert!(!save_in_progress(&f, false), "existing file: a backup alone does not matter");
+        assert!(!save_in_progress(&d.path().join("Altro.ork"), true));
         fs::remove_file(d.path().join("Razzo.ork-bak")).unwrap();
-        fs::write(d.path().join("ORSave42.tmp"), b"x").unwrap();
-        assert!(save_in_progress(&f));
+        let tmp = d.path().join("ORSave42.tmp");
+        fs::write(&tmp, b"x").unwrap();
+        assert!(save_in_progress(&f, false));
+        let old = fs::OpenOptions::new().write(true).open(&tmp).unwrap();
+        old.set_modified(SystemTime::now() - Duration::from_secs(120)).unwrap();
+        assert!(!save_in_progress(&f, false), "an old leftover does not block existing files");
+        assert!(save_in_progress(&f, true), "...but still protects a deletion");
     }
 
     #[test]

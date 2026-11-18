@@ -1,0 +1,34 @@
+<!--
+  Windows Sandbox: Windows pulito e usa-e-getta per provare l'installazione di Rocket Sync.
+  Requisiti: Windows 10/11 Pro, Enterprise o Education con la funzione "Windows Sandbox" attiva.
+
+  La cartella installer/ del repository viene mappata in SOLA LETTURA in C:\RocketSyncInstaller.
+  HostFolder deve essere un percorso assoluto: usa sandbox\avvia-sandbox.cmd, che lo sistema da solo
+  (oppure sostituisci a mano C:\RocketSync\installer con la cartella installer/ di questo PC).
+
+  Al primo accesso la sandbox esegue sandbox\test-pulito.cmd, che:
+    1. lancia l'installazione (install.cmd local, stessa logica del comando unico);
+    2. esegue "%LOCALAPPDATA%\Programs\Rocket Sync\Rocket Sync.exe" con l'opzione self-test
+       (a doppio trattino) e il file %USERPROFILE%\Desktop\selftest.json come risultato;
+    3. copia il log di installazione sul Desktop e avvia l'app per la prova a mano.
+  Prima di usarla imposta ROCKETSYNC_OWNER/ROCKETSYNC_REPO all'inizio di test-pulito.cmd.
+-->
+<Configuration>
+  <VGpu>Disable</VGpu>
+  <Networking>Enable</Networking>
+  <AudioInput>Disable</AudioInput>
+  <VideoInput>Disable</VideoInput>
+  <PrinterRedirection>Disable</PrinterRedirection>
+  <ClipboardRedirection>Enable</ClipboardRedirection>
+  <MemoryInMB>4096</MemoryInMB>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\RocketSync\installer</HostFolder>
+      <SandboxFolder>C:\RocketSyncInstaller</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>cmd.exe /k C:\RocketSyncInstaller\sandbox\test-pulito.cmd</Command>
+  </LogonCommand>
+</Configuration>

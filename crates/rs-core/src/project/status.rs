@@ -113,7 +113,7 @@ impl ProjectInner {
             } else {
                 FileChangeKind::Modified
             };
-            let saving = util::save_in_progress(&self.folder.join(&e.path));
+            let abs = self.folder.join(&e.path);
             if change == FileChangeKind::Deleted {
                 // A deletion is real only if the file stays away for the whole debounce and no
                 // OpenRocket save sequence (`ORSave*.tmp`, `<name>.ork-bak`) is going on.
@@ -123,14 +123,14 @@ impl ProjectInner {
                     change,
                     size: None,
                     mtime: None,
-                    stable: stable && !saving,
+                    stable: stable && !util::save_in_progress(&abs, true),
                     valid: Some(true),
                     reason: None,
                 });
                 continue;
             }
             let (meta, stable, valid, reason, unreadable) = self.observe_file(&e.path);
-            let stable = stable && !saving;
+            let stable = stable && !util::save_in_progress(&abs, false);
             if change == FileChangeKind::Modified {
                 if let (Some(m), Some(oid)) = (meta, e.head_oid.as_deref()) {
                     if self.equals_head(&e.path, m, oid) {

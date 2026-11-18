@@ -1,0 +1,204 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Permessi minimi: i job leggono solo il codice.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  # Versione del CLI di Tauri usata per costruire l'installer (il repository non lo ha tra le dipendenze).
+  TAURI_CLI_VERSION: "2"
+
+jobs:
+  # --------------------------------------------------------------------------------------------
+  linux:
+    name: Linux (Rust, database, funzioni, app)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dipendenze di sistema (Tauri, PostgreSQL 16, pgTAP)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev libgtk-3-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev \
+            postgresql-16 postgresql-16-pgtap libtap-parser-sourcehandler-pgtap-perl
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace
+
+      - name: Test del database (pgTAP su un PostgreSQL 16 usa-e-getta)
+        run: supabase/scripts/test-db.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: supabase/package-lock.json
+      - name: Edge Functions (vitest, typecheck)
+        working-directory: supabase
+        run: |
+          npm ci
+          npm test
+          npm run typecheck
+
+      - name: Script di release (node --test)
+        run: node --test "scripts/*.test.mjs"
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Dipendenze dell'app
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm -r typecheck
+      - name: Lint
+        run: pnpm -r lint
+      - name: Test dell'interfaccia
+        run: pnpm -r test
+      - name: Build dell'interfaccia
+        run: pnpm --filter @rocketsync/desktop build
+      - name: Browser per i test end-to-end
+        working-directory: apps/desktop
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Test end-to-end (backend simulato)
+        run: pnpm --filter @rocketsync/desktop e2e
+      - name: Screenshot dei test end-to-end
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: apps/desktop/e2e/screenshots
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # --------------------------------------------------------------------------------------------
+  workflows:
+    name: Verifica dei workflow (actionlint)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
+
+  # --------------------------------------------------------------------------------------------
+  installer-scripts:
+    name: Script di installazione (Pester su Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pester (PowerShell 7)
+        shell: pwsh
+        run: |
+          Install-Module Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+          $c = New-PesterConfiguration
+          $c.Run.Path = 'installer/tests'
+          $c.Run.Exit = $true
+          $c.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $c
+
+  # --------------------------------------------------------------------------------------------
+  windows:
+    name: Windows (test, installer, installazione silenziosa)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      # Windows PowerShell 5.1: la stessa versione che eseguirà install.ps1 sui PC del team.
+      - name: Script di installazione (Pester su Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          Install-Module Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+          Import-Module Pester -MinimumVersion 5.5.0
+          $c = New-PesterConfiguration
+          $c.Run.Path = 'installer/tests'
+          $c.Run.Exit = $true
+          $c.Output.Verbosity = 'Detailed'
+          Write-Host "PowerShell $($PSVersionTable.PSVersion)"
+          Invoke-Pester -Configuration $c
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test dei crate (rs-git, rs-store, rs-core, rs-ork)
+        run: cargo test -p rs-git -p rs-store -p rs-core -p rs-ork
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Scarica MinGit (incluso nell'app)
+        shell: pwsh
+        run: |
+          $script = 'apps/desktop/src-tauri/scripts/fetch-mingit.ps1'
+          if (-not (Test-Path $script)) { throw "Manca $script: serve per includere Git nell'installer." }
+          & $script
+
+      - name: Costruisci l'installer NSIS
+        working-directory: apps/desktop
+        shell: pwsh
+        run: pnpm dlx "@tauri-apps/cli@${env:TAURI_CLI_VERSION}" build --ci --bundles nsis --config ../../installer/tauri.ci.conf.json
+
+      - name: Individua l'installer
+        id: installer
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem -Path target/release/bundle/nsis -Filter '*-setup.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $f) { throw 'Installer NSIS non trovato in target/release/bundle/nsis' }
+          "path=$($f.FullName)" >> $env:GITHUB_OUTPUT
+          Write-Host ("{0} ({1:N1} MB)" -f $f.Name, ($f.Length / 1MB))
+
+      # Windows PowerShell 5.1, come sui PC reali.
+      - name: Smoke test (installazione silenziosa, collegamenti, --self-test, disinstallazione)
+        shell: powershell
+        env:
+          INSTALLER_PATH: ${{ steps.installer.outputs.path }}
+        run: |
+          & .\installer\tests\smoke-windows.ps1 -Installer $env:INSTALLER_PATH -OutDir "$env:RUNNER_TEMP\smoke"
+          exit $LASTEXITCODE
+
+      - name: Esito dello smoke test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-smoke
+          path: ${{ runner.temp }}/smoke
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Installer di prova
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-ci
+          path: ${{ steps.installer.outputs.path }}
+          retention-days: 7

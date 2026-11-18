@@ -25,6 +25,16 @@ impl OrkInspector {
         validate(bytes).map(|_| ()).map_err(|e| e.to_string())
     }
 
+    /// True if the two versions of a file have the same content. For `.ork` files bytes may differ
+    /// (timestamps, entry order, compression) without the content changing; other files are
+    /// compared byte by byte.
+    pub fn content_equal(&self, path: &str, a: &[u8], b: &[u8]) -> bool {
+        if !is_ork(path) {
+            return a == b;
+        }
+        crate::content_equal(a, b)
+    }
+
     /// Changelog lines in Italian (without the "• " prefix).
     pub fn changelog(
         &self,

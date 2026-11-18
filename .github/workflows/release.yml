@@ -1,0 +1,192 @@
+name: Release
+
+# Parte da un tag vX.Y.Z. Costruisce l'installer per Windows firmato per l'updater e lo pubblica come
+# release di un repository configurabile (non necessariamente questo).
+#
+# Variabili del repository (Settings -> Secrets and variables -> Actions -> Variables):
+#   RELEASES_REPO     repository che ospita le release, nella forma proprietario/nome
+#   UPDATER_PUBKEY    chiave PUBBLICA dell'updater (contenuto del file .pub generato da `tauri signer generate`)
+# Segreti:
+#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD   chiave privata dell'updater
+#   RELEASES_TOKEN    token con permesso di scrivere le release su RELEASES_REPO
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  TAURI_CLI_VERSION: "2"
+
+jobs:
+  build:
+    name: Costruisci l'installer (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      RELEASES_REPO: ${{ vars.RELEASES_REPO }}
+      UPDATER_PUBKEY: ${{ vars.UPDATER_PUBKEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Controlla la configurazione
+        shell: pwsh
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          HAS_TOKEN: ${{ secrets.RELEASES_TOKEN != '' }}
+        run: |
+          $errors = @()
+          if ([string]::IsNullOrWhiteSpace($env:RELEASES_REPO) -or $env:RELEASES_REPO -notmatch '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$') { $errors += 'La variabile RELEASES_REPO manca o non e'' nella forma proprietario/nome.' }
+          if ([string]::IsNullOrWhiteSpace($env:UPDATER_PUBKEY)) { $errors += 'La variabile UPDATER_PUBKEY (chiave pubblica dell''updater) manca.' }
+          if ($env:HAS_KEY -ne 'true') { $errors += 'Il segreto TAURI_SIGNING_PRIVATE_KEY manca.' }
+          if ($env:HAS_TOKEN -ne 'true') { $errors += 'Il segreto RELEASES_TOKEN manca.' }
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: La versione coincide con il tag
+        run: node scripts/check-release-version.mjs "$env:GITHUB_REF_NAME"
+        shell: pwsh
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test dei crate
+        run: cargo test -p rs-git -p rs-store -p rs-core -p rs-ork
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Scarica MinGit (incluso nell'app)
+        shell: pwsh
+        run: |
+          $script = 'apps/desktop/src-tauri/scripts/fetch-mingit.ps1'
+          if (-not (Test-Path $script)) { throw "Manca $script: serve per includere Git nell'installer." }
+          & $script
+
+      - name: Configurazione di rilascio (updater)
+        shell: pwsh
+        run: |
+          $base = Get-Content -Raw installer/tauri.release.conf.json | ConvertFrom-Json
+          $cfg = @{
+            bundle  = $base.bundle
+            plugins = @{
+              updater = @{
+                pubkey    = $env:UPDATER_PUBKEY.Trim()
+                endpoints = @("https://github.com/$($env:RELEASES_REPO)/releases/latest/download/latest.json")
+              }
+            }
+          }
+          $cfg | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 release-config.json
+
+      - name: Costruisci e firma l'installer NSIS
+        working-directory: apps/desktop
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm dlx "@tauri-apps/cli@${env:TAURI_CLI_VERSION}" build --ci --bundles nsis --config ../../release-config.json
+
+      - name: Raccogli i file della release
+        id: files
+        shell: pwsh
+        run: |
+          $nsis = 'target/release/bundle/nsis'
+          $exe = Get-ChildItem -Path $nsis -Filter '*-setup.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $exe) { throw "Installer NSIS non trovato in $nsis" }
+          $sig = "$($exe.FullName).sig"
+          if (-not (Test-Path $sig)) { throw "Firma dell'updater (.sig) non trovata: $sig" }
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Copy-Item $exe.FullName release/RocketSync-setup.exe
+          Copy-Item $sig release/RocketSync-setup.exe.sig
+          "installer=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+
+      # Stessa prova della CI, sull'installer che sta per essere pubblicato (Windows PowerShell 5.1).
+      - name: Smoke test dell'installer
+        shell: powershell
+        env:
+          INSTALLER_PATH: ${{ github.workspace }}\release\RocketSync-setup.exe
+        run: |
+          & .\installer\tests\smoke-windows.ps1 -Installer $env:INSTALLER_PATH -OutDir "$env:RUNNER_TEMP\smoke"
+          exit $LASTEXITCODE
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: release
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Pubblica la release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      RELEASES_REPO: ${{ vars.RELEASES_REPO }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # serve la storia per le note della release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-files
+          path: release
+
+      - name: Impronta SHA-256, latest.json, script di installazione
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          owner="${RELEASES_REPO%%/*}"
+          repo="${RELEASES_REPO##*/}"
+          cd release
+          sha256sum RocketSync-setup.exe > RocketSync-setup.exe.sha256
+          cd ..
+          # Note della release: l'elenco dei commit dall'ultimo tag, se esiste.
+          prev="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+          if [ -n "$prev" ]; then range="$prev..$TAG"; else range="$TAG"; fi
+          git log --no-merges --pretty='- %s' "$range" | head -50 > release/notes.md || true
+          [ -s release/notes.md ] || echo "Rocket Sync ${version}" > release/notes.md
+          node scripts/make-latest-json.mjs --version "$version" --repo "$RELEASES_REPO" --tag "$TAG" \
+            --sig release/RocketSync-setup.exe.sig --notes-file release/notes.md --out release/latest.json
+          # Script di installazione con il repository delle release già impostato.
+          sed -e "s|@@OWNER@@|${owner}|g" -e "s|@@REPO@@|${repo}|g" installer/install.ps1 > release/install.ps1
+          sed -e "s|@@OWNER@@|${owner}|g" -e "s|@@REPO@@|${repo}|g" installer/install.cmd > release/install.cmd
+          if grep -q '@@' release/install.ps1 release/install.cmd; then echo "::error::Segnaposto non sostituiti"; exit 1; fi
+          ls -l release
+          cat release/latest.json
+
+      - name: Pubblica su ${{ vars.RELEASES_REPO }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          set -euo pipefail
+          flags=()
+          case "$TAG" in *-*) flags+=(--prerelease) ;; esac
+          if gh release view "$TAG" --repo "$RELEASES_REPO" >/dev/null 2>&1; then
+            echo "La release $TAG esiste già: aggiorno i file."
+            gh release upload "$TAG" --repo "$RELEASES_REPO" --clobber \
+              release/RocketSync-setup.exe release/RocketSync-setup.exe.sha256 release/RocketSync-setup.exe.sig \
+              release/latest.json release/install.ps1 release/install.cmd
+          else
+            gh release create "$TAG" --repo "$RELEASES_REPO" --title "Rocket Sync ${TAG#v}" \
+              --notes-file release/notes.md "${flags[@]}" \
+              release/RocketSync-setup.exe release/RocketSync-setup.exe.sha256 release/RocketSync-setup.exe.sig \
+              release/latest.json release/install.ps1 release/install.cmd
+          fi

@@ -180,6 +180,38 @@ pub fn ork(content: &str) -> Vec<u8> {
     buf
 }
 
+/// Like [`ork`] but with the ZIP entry time set to `year` (same content, different bytes).
+pub fn ork_ts(content: &str, year: u16) -> Vec<u8> {
+    let mut buf = Vec::new();
+    {
+        let mut zw = zip::ZipWriter::new(Cursor::new(&mut buf));
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated)
+            .last_modified_time(zip::DateTime::from_date_and_time(year, 1, 1, 0, 0, 0).unwrap());
+        zw.start_file("rocket.ork", opts).unwrap();
+        let mut body = format!("<openrocket><rocket name=\"{content}\"/>");
+        for i in 0..200 {
+            body.push_str(&format!("<c i=\"{i}\" v=\"{}\"/>", content.len() * i));
+        }
+        body.push_str("</openrocket>");
+        zw.write_all(body.as_bytes()).unwrap();
+        zw.finish().unwrap();
+    }
+    buf
+}
+
+fn zip_entries(bytes: &[u8]) -> Option<Vec<(String, Vec<u8>)>> {
+    let mut z = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let mut v = Vec::new();
+    for i in 0..z.len() {
+        let mut f = z.by_index(i).ok()?;
+        let mut data = Vec::new();
+        f.read_to_end(&mut data).ok()?;
+        v.push((f.name().to_string(), data));
+    }
+    Some(v)
+}
+
 /// A ZIP cut in the middle (what OpenRocket leaves while it is still writing).
 pub fn partial_ork(content: &str) -> Vec<u8> {
     let full = ork(content);
@@ -205,6 +237,19 @@ impl FileInspector for ZipInspector {
                 .map_err(|e| format!("voce {i} non leggibile ({e})"))?;
         }
         Ok(())
+    }
+
+    fn content_equal(&self, path: &str, a: &[u8], b: &[u8]) -> bool {
+        if a == b {
+            return true;
+        }
+        if !path.to_lowercase().ends_with(".ork") {
+            return false;
+        }
+        match (zip_entries(a), zip_entries(b)) {
+            (Some(x), Some(y)) => x == y,
+            _ => false,
+        }
     }
 
     fn changelog(&self, path: &str, before: Option<&[u8]>, after: Option<&[u8]>) -> Vec<String> {
@@ -564,4 +609,24 @@ impl Duel {
         assert_eq!(st.open_conflict_ids.len(), 1);
         st.open_conflict_ids[0].clone()
     }
+}
+
+/// A user whose engine runs the watcher and the background loop (automatic publication, fetch).
+pub async fn user_with_background(name: &str, remote: &Remote, fetch_ms: u64) -> User {
+    let tmp = tempfile::tempdir().unwrap();
+    let data_dir = tmp.path().join("data");
+    let folder = tmp.path().join("progetto");
+    let detector = Arc::new(MockDetector::default());
+    let mut cfg = test_config(&data_dir, detector.clone());
+    cfg.background = true;
+    cfg.watch = true;
+    cfg.timing.fetch_interval = Duration::from_millis(fetch_ms);
+    let engine = Engine::open(cfg).await.unwrap();
+    engine.set_identity(Some(Identity {
+        name: name.into(),
+        email: format!("1+{}@users.noreply.github.com", name.to_lowercase()),
+    }));
+    let u = User { name: name.into(), engine, folder, data_dir, detector, _tmp: tmp };
+    u.link(remote).await.unwrap();
+    u
 }

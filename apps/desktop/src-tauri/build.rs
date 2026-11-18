@@ -1,0 +1,51 @@
+const COMMANDS: &[&str] = &[
+    "auth_status",
+    "auth_sign_in",
+    "auth_sign_out",
+    "secure_store_get",
+    "secure_store_set",
+    "secure_store_delete",
+    "list_local_projects",
+    "suggest_project_folder",
+    "check_folder",
+    "pick_folder",
+    "link_project",
+    "unlink_project",
+    "get_project_status",
+    "publish",
+    "sync_now",
+    "update_now",
+    "discard_changes",
+    "answer_stale_save",
+    "notify_remote_changed",
+    "get_publish_policy",
+    "set_publish_policy",
+    "list_versions",
+    "get_version",
+    "compare_versions",
+    "export_version",
+    "open_version_copy",
+    "restore_version",
+    "list_conflicts",
+    "get_conflict",
+    "open_conflict_copy",
+    "resolve_conflict",
+    "list_snapshots",
+    "export_snapshot",
+    "get_app_info",
+    "open_in_openrocket",
+    "open_folder",
+    "get_app_settings",
+    "set_app_settings",
+    "export_diagnostics",
+    "check_for_update",
+    "install_update",
+    "notify_desktop",
+];
+
+fn main() {
+    // Only the commands of the IPC contract can be invoked by the interface: each one gets an
+    // `allow-<name>` permission that capabilities/default.json grants explicitly.
+    let attrs = tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMMANDS));
+    tauri_build::try_build(attrs).expect("failed to run tauri-build");
+}

@@ -1,0 +1,7 @@
+# Statically linked C runtime on Windows MSVC: the installer does not need the VC++ redistributable.
+# NB: cargo reads this file when it is started from apps/desktop/src-tauri (the Tauri CLI does so).
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
