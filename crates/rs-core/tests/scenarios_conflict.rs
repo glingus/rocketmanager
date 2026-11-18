@@ -677,7 +677,7 @@ async fn s05_forced_update_then_stale_save_becomes_a_conflict_not_an_overwrite()
         .any(|e| matches!(e, EngineEvent::StaleSaveSuspected { path, .. } if path == "Razzo.ork")));
     // it cannot be published until the user answers
     let e = b.publish("subito").await.unwrap_err();
-    assert_eq!(e.code(), ErrorCode::ConflictOpen);
+    assert_eq!(e.code(), ErrorCode::StaleSavePending);
     assert!(e.to_app_error().message.contains("salvataggio sospetto"));
     assert_eq!(remote.tags(), vec!["v1", "v2"]);
 

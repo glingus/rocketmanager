@@ -78,7 +78,9 @@ impl ProjectInner {
             let target_oid = target.as_ref().map(|t| t.1.clone());
             let write = if disk == target_oid {
                 false // already in the desired state (idempotent re-run, or a manual merge)
-            } else if !allow_dirty.contains(&d.path) && disk == from_oid {
+            } else if !allow_dirty.contains(&d.path)
+                && (disk == from_oid || self.equivalent_to(&d.path, disk.is_some(), from_oid.as_deref()))
+            {
                 true
             } else {
                 // Either the file was changed locally, or it is a "manual" path that no longer
@@ -120,6 +122,14 @@ impl ProjectInner {
                 continue;
             }
             let abs = self.folder.join(&p.path);
+            // The user may have saved this very file after the plan was made (TOCTOU): look
+            // again right before touching it and stop, rolling back, if it no longer matches.
+            self.failpoint("materialize.before_write")?;
+            let current = self.repo.hash_files(std::slice::from_ref(&p.path))?;
+            if current[0] != p.disk {
+                failure = Some(CoreError::LocalChangesPresent(vec![p.path.clone()]));
+                break;
+            }
             let res: Result<()> = match (&p.target, &blobs[i]) {
                 (Some(_), Some(data)) => atomic_write(&abs, data).map_err(CoreError::from),
                 _ => remove_file_retry(&abs)
@@ -190,6 +200,19 @@ impl ProjectInner {
                 .collect(),
         };
         Ok(report)
+    }
+
+    /// A file on disk that differs from `from_oid` only in bytes (e.g. a re-saved `.ork`) counts as unmodified.
+    fn equivalent_to(&self, path: &str, on_disk: bool, from_oid: Option<&str>) -> bool {
+        let (true, Some(oid)) = (on_disk, from_oid) else {
+            return false;
+        };
+        match (std::fs::read(self.folder.join(path)), self.repo.cat_blob(oid)) {
+            (Ok(disk), Ok(old)) if disk.len() as u64 <= MAX_FILE_BYTES => {
+                self.shared.config.inspector.content_equal(path, &disk, &old)
+            }
+            _ => false,
+        }
     }
 
     /// Paths that [`ProjectInner::materialize`] would actually have to write (disk differs from the target).

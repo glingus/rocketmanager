@@ -73,12 +73,36 @@ impl ProjectInner {
         (meta, obs.stable, valid, reason, obs.unreadable)
     }
 
+    /// Whether the file on disk has the same *content* as the HEAD blob `oid` according to the
+    /// inspector (cached by file metadata).
+    fn equals_head(&self, path: &str, meta: Meta, oid: &str) -> bool {
+        if let Some((m, o, eq)) = self.rt(|r| r.equal_cache.get(path).cloned()) {
+            if m == meta && o == oid {
+                return eq;
+            }
+        }
+        let eq = if meta.size > MAX_FILE_BYTES {
+            false
+        } else {
+            match (std::fs::read(self.folder.join(path)), self.repo.cat_blob(oid)) {
+                (Ok(disk), Ok(head)) => self.shared.config.inspector.content_equal(path, &disk, &head),
+                _ => false,
+            }
+        };
+        self.rt(|r| {
+            r.equal_cache.insert(path.to_string(), (meta, oid.to_string(), eq));
+        });
+        eq
+    }
+
     /// Unpublished changes of the working directory.
     pub(crate) fn local_changes(&self) -> Result<Vec<LocalChange>> {
         let entries = self.repo.status()?;
         let mut out = Vec::new();
         for e in entries {
-            if e.path.starts_with(".rocketsync/local/") || util::validate_rel_path(&e.path).is_err()
+            if e.path.starts_with(".rocketsync/local/")
+                || util::is_rocket_temp(&e.path)
+                || util::validate_rel_path(&e.path).is_err()
             {
                 continue;
             }
@@ -89,19 +113,31 @@ impl ProjectInner {
             } else {
                 FileChangeKind::Modified
             };
+            let saving = util::save_in_progress(&self.folder.join(&e.path));
             if change == FileChangeKind::Deleted {
+                // A deletion is real only if the file stays away for the whole debounce and no
+                // OpenRocket save sequence (`ORSave*.tmp`, `<name>.ork-bak`) is going on.
+                let (_, stable, _, _, _) = self.observe_file(&e.path);
                 out.push(LocalChange {
                     path: e.path,
                     change,
                     size: None,
                     mtime: None,
-                    stable: true,
+                    stable: stable && !saving,
                     valid: Some(true),
                     reason: None,
                 });
                 continue;
             }
             let (meta, stable, valid, reason, unreadable) = self.observe_file(&e.path);
+            let stable = stable && !saving;
+            if change == FileChangeKind::Modified {
+                if let (Some(m), Some(oid)) = (meta, e.head_oid.as_deref()) {
+                    if self.equals_head(&e.path, m, oid) {
+                        continue; // same content as HEAD (e.g. a re-save): not a change
+                    }
+                }
+            }
             let reason = if unreadable {
                 reason.map(|r| format!("illeggibile: {r}"))
             } else {

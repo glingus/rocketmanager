@@ -12,6 +12,12 @@ pub trait FileInspector: Send + Sync {
     fn validate(&self, path: &str, bytes: &[u8]) -> Result<(), String>;
     /// Changelog lines in Italian, without the leading `• `.
     fn changelog(&self, path: &str, before: Option<&[u8]>, after: Option<&[u8]>) -> Vec<String>;
+    /// Whether two byte strings are the same *content* for this file type. Two saves of the same
+    /// rocket produce different bytes (ZIP metadata): such a file is not a change. The default is
+    /// plain byte equality.
+    fn content_equal(&self, _path: &str, a: &[u8], b: &[u8]) -> bool {
+        a == b
+    }
 }
 
 /// Default inspector: validates everything and produces generic changelog lines.

@@ -81,6 +81,8 @@ pub(crate) struct Runtime {
     pub retrying: bool,
     /// File states already written to the store: (stable, valid, size, mtime_ms).
     pub persisted_states: HashMap<String, (bool, Option<bool>, i64, i64)>,
+    /// `content_equal` verdicts against HEAD: path -> (metadata, head blob, equal).
+    pub equal_cache: HashMap<String, (crate::tracker::Meta, String, bool)>,
 }
 
 /// Journal context of the running top-level operation.
@@ -114,6 +116,8 @@ pub(crate) fn build_ignore(folder: &std::path::Path) -> Gitignore {
     for p in [
         ".rocketsync/local/",
         "*.tmp",
+        "ORSave*.tmp",
+        "*.ork-bak",
         "~$*",
         "*.swp",
         "*.bak",
@@ -169,6 +173,7 @@ impl ProjectInner {
                 repo_size: None,
                 retrying: false,
                 persisted_states: HashMap::new(),
+                equal_cache: HashMap::new(),
             }),
             tracker: Mutex::new(tracker),
             ignore: Mutex::new(ignore),

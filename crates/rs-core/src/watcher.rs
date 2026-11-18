@@ -38,7 +38,11 @@ fn relative(path: &Path, root: &Path, canon: &Path) -> Option<String> {
 impl ProjectInner {
     /// Whether events on `rel` must be ignored.
     pub(crate) fn is_ignored_path(&self, rel: &str) -> bool {
-        if rel == ".git" || rel.starts_with(".git/") || rel.starts_with(".rocketsync/local") {
+        if rel == ".git"
+            || rel.starts_with(".git/")
+            || rel.starts_with(".rocketsync/local")
+            || crate::util::is_rocket_temp(rel)
+        {
             return true;
         }
         let abs = self.folder.join(rel);

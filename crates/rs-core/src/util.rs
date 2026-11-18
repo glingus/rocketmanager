@@ -7,6 +7,29 @@ use std::io::Write;
 use std::path::{Component, Path};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+/// Temporary files of the OpenRocket save sequence (`ORSave*.tmp`, `<name>.ork-bak`): never part of
+/// a project, whatever the project's `.gitignore` says.
+pub(crate) fn is_rocket_temp(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path).to_lowercase();
+    name.ends_with(".ork-bak") || (name.starts_with("orsave") && name.ends_with(".tmp"))
+}
+
+/// Whether the folder of `abs` holds a leftover of an OpenRocket save in progress: a backup
+/// `<name>-bak` of this very file or any `ORSave*.tmp`.
+pub(crate) fn save_in_progress(abs: &Path) -> bool {
+    let Some(dir) = abs.parent() else { return false };
+    let name = abs
+        .file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let bak = format!("{name}-bak");
+    let Ok(rd) = fs::read_dir(dir) else { return false };
+    rd.flatten().any(|e| {
+        let n = e.file_name().to_string_lossy().to_lowercase();
+        n == bak || (n.starts_with("orsave") && n.ends_with(".tmp"))
+    })
+}
+
 /// Unix milliseconds → ISO 8601 UTC (`2026-01-01T10:00:00Z`).
 pub(crate) fn iso_from_ms(ms: i64) -> String {
     Utc.timestamp_millis_opt(ms)
@@ -246,6 +269,24 @@ mod tests {
             c == "a/Razzo (copia locale 2026-01-01).ork"
         });
         assert_eq!(n, "a/Razzo (copia locale 2026-01-01) (2).ork");
+    }
+
+    #[test]
+    fn openrocket_temp_files() {
+        assert!(is_rocket_temp("a/Razzo.ork-bak"));
+        assert!(is_rocket_temp("ORSave123.tmp"));
+        assert!(is_rocket_temp("x/orsave9.TMP"));
+        assert!(!is_rocket_temp("Razzo.ork"));
+        assert!(!is_rocket_temp("note.tmp.txt"));
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("Razzo.ork");
+        assert!(!save_in_progress(&f));
+        fs::write(d.path().join("Razzo.ork-bak"), b"x").unwrap();
+        assert!(save_in_progress(&f));
+        assert!(!save_in_progress(&d.path().join("Altro.ork")));
+        fs::remove_file(d.path().join("Razzo.ork-bak")).unwrap();
+        fs::write(d.path().join("ORSave42.tmp"), b"x").unwrap();
+        assert!(save_in_progress(&f));
     }
 
     #[test]

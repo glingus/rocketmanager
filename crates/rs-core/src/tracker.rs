@@ -157,7 +157,7 @@ impl FileTracker {
             (Some(_), true, false) => (false, false),
         };
         Observation {
-            stable: stable || current.is_none(),
+            stable,
             validation: e.validation.clone(),
             needs_validation,
             unreadable,

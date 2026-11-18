@@ -5,6 +5,7 @@ members = [
     "crates/rs-store",
     "crates/rs-core",
     "crates/rs-ork",
+    "apps/desktop/src-tauri",
 ]
 
 [workspace.package]

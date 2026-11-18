@@ -485,3 +485,43 @@ async fn s07_recovery_is_idempotent() {
     let a = a.restart().await;
     assert!(a.engine.start().await.unwrap().is_empty());
 }
+
+// ---- TOCTOU: a file saved between planning and writing ------------------------------------
+
+#[tokio::test]
+async fn materialize_rechecks_each_file_right_before_writing_it() {
+    let remote = Remote::new();
+    let a = User::linked("Anna", &remote).await;
+    let b = User::linked("Bruno", &remote).await;
+    a.write_ork("X.ork", "x1");
+    a.write_ork("Y.ork", "y1");
+    a.publish("v1").await.unwrap();
+    b.sync().await;
+    a.write_ork("X.ork", "x2");
+    a.write_ork("Y.ork", "y2");
+    a.publish("v2").await.unwrap();
+
+    // Bruno saves Y.ork after the plan was made and before the engine writes it
+    let y = b.path("Y.ork");
+    let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let h2 = hits.clone();
+    b.engine.failpoints().set(
+        "materialize.before_write",
+        FailAction::Callback(std::sync::Arc::new(move || {
+            if h2.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 1 {
+                std::fs::write(&y, ork("salvato-da-bruno")).unwrap();
+            }
+        })),
+    );
+    let e = b.engine.update_now(PROJECT, false).await.unwrap_err();
+    assert_eq!(e.code(), ErrorCode::LocalChangesPresent, "{e}");
+    assert!(matches!(&e, CoreError::LocalChangesPresent(p) if p == &vec!["Y.ork".to_string()]), "{e}");
+    assert_eq!(b.read("Y.ork"), ork("salvato-da-bruno"), "the user's save is never overwritten");
+    assert_eq!(b.read("X.ork"), ork("x1"), "what was already written has been rolled back");
+    assert_eq!(b.head(), git(&b.folder, &["rev-parse", "v1^{commit}"]), "HEAD did not move");
+    // nothing left half-way: the next update sees a normal overlap and opens a conflict
+    b.engine.failpoints().clear_all();
+    let st = b.sync().await;
+    assert_eq!(st.state, SyncState::Conflict, "{st:#?}");
+    assert_eq!(b.read("Y.ork"), ork("salvato-da-bruno"));
+}

@@ -5,7 +5,8 @@
 //! (the journal is left unfinished, exactly like a crash) or runs a callback (e.g. to let a third
 //! party publish at a precise moment). With no registered action the points cost one hash lookup.
 //!
-//! Points used by the engine: `materialize.after_first_write`, `materialize.before_ref_update`,
+//! Points used by the engine: `materialize.before_write` (before each file), `materialize.after_first_write`,
+//! `materialize.before_ref_update`,
 //! `send.before_push`, `send.after_push`, `conflict.before_branch_push`.
 
 use crate::error::CoreError;
