@@ -61,6 +61,7 @@ export const tauriBackend: Backend = {
   checkForUpdate: () => call('check_for_update'),
   installUpdate: () => call('install_update'),
   notifyDesktop: (args) => call('notify_desktop', args),
+  notifyRemoteChanged: (projectId) => call('notify_remote_changed', { projectId }),
 
   on(event, handler) {
     let disposed = false;

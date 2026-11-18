@@ -295,6 +295,12 @@ export class MockBackend implements Backend {
     this.world.desktopNotifications.push(args);
   }
 
+  async notifyRemoteChanged(projectId: string) {
+    await this.world.ready;
+    const sim = this.world.sims.get(projectId);
+    if (sim) await sim.fetchTick();
+  }
+
   on<E extends BackendEventName>(event: E, handler: (payload: BackendEvents[E]) => void) {
     return this.world.onBackend(event, handler);
   }

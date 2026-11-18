@@ -114,6 +114,7 @@ export const it = {
       blockedByEditor: 'Il file è aperto in OpenRocket.',
       conflictOpen: 'C\u2019è un conflitto aperto da risolvere.',
       localChangesPresent: 'Ci sono modifiche non pubblicate su questi file.',
+      staleSavePending: 'Rispondi alla domanda sul file salvato dopo l\u2019aggiornamento prima di pubblicare.',
       nonFastForward: 'Un collega ha pubblicato nel frattempo: riprovo.',
       lockHeld: 'Un\u2019altra operazione è in corso su questo progetto.',
       notFound: 'Elemento non trovato.',

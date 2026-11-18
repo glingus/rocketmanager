@@ -78,6 +78,8 @@ export interface Backend {
   checkForUpdate(): Promise<UpdateCheck>;
   installUpdate(): Promise<void>;
   notifyDesktop(args: { title: string; body: string }): Promise<void>;
+  /** Supabase realtime reported a new version row: the core fetches right away. */
+  notifyRemoteChanged(projectId: string): Promise<void>;
 
   // events
   on<E extends BackendEventName>(event: E, handler: (payload: BackendEvents[E]) => void): Unsubscribe;

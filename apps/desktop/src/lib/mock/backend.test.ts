@@ -143,7 +143,7 @@ describe('mock backend: updates from colleagues', () => {
     const afterSave = await backend.getProjectStatus(AURORA);
     expect(afterSave.staleSaveSuspected).toEqual(['Aurora.ork']);
     expect(stale).toHaveLength(1);
-    await expect(backend.publish({ projectId: AURORA })).rejects.toMatchObject({ code: 'fileNotStable' });
+    await expect(backend.publish({ projectId: AURORA })).rejects.toMatchObject({ code: 'staleSavePending' });
 
     // "No / non so" -> conflict instead of silently overwriting the colleague's work
     const answered = await backend.answerStaleSave({ projectId: AURORA, path: 'Aurora.ork', reopened: false });
@@ -360,5 +360,15 @@ describe('mock backend: linking', () => {
     expect(mainFile(world, AURORA)).toBe('Aurora.ork');
     const check = await backend.checkFolder('C:\\Users\\simone\\OneDrive\\Razzi');
     expect(check.inSyncedDrive).toBe('onedrive');
+  });
+});
+
+describe('mock backend: notify_remote_changed', () => {
+  it('fetches and applies a colleague version right away', async () => {
+    const { backend, world } = await setup();
+    controls.colleaguePublish(world, AURORA);
+    expect((await backend.getProjectStatus(AURORA)).headVersion).toBe(7);
+    await backend.notifyRemoteChanged(AURORA);
+    expect((await backend.getProjectStatus(AURORA)).headVersion).toBe(8);
   });
 });

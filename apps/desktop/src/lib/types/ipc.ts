@@ -18,6 +18,7 @@ export type ErrorCode =
   | 'blockedByEditor'
   | 'conflictOpen'
   | 'localChangesPresent'
+  | 'staleSavePending'
   | 'nonFastForward'
   | 'lockHeld'
   | 'notFound'

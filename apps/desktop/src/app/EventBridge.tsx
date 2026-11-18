@@ -214,7 +214,7 @@ export function EventBridge() {
         for (const key of map[change.table] ?? []) void qc.invalidateQueries({ queryKey: key });
         if (change.table === 'versions') {
           // A colleague published: look for news right away (fetch + automatic update).
-          void backend.syncNow(projectId).catch(() => undefined);
+          void backend.notifyRemoteChanged(projectId).catch(() => undefined);
         }
       }),
     );
