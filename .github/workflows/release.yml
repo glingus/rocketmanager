@@ -23,7 +23,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  TAURI_CLI_VERSION: "2"
 
 jobs:
   build:
@@ -97,7 +96,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm dlx "@tauri-apps/cli@${env:TAURI_CLI_VERSION}" build --ci --bundles nsis --config ../../release-config.json
+        run: pnpm tauri build --ci --bundles nsis --config ../../release-config.json
 
       - name: Raccogli i file della release
         id: files

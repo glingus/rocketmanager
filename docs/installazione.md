@@ -186,7 +186,7 @@ restare privato, in un repo diverso). Un repository privato non permette il down
 1. **Chiavi dell'updater** (su un PC fidato):
 
    ```
-   pnpm dlx @tauri-apps/cli@2 signer generate -w %USERPROFILE%\.tauri\rocketsync.key
+   pnpm --filter @rocketsync/desktop tauri signer generate -w %USERPROFILE%\.tauri\rocketsync.key
    ```
 
    Crea la chiave **privata** (`rocketsync.key`) e la **pubblica** (`rocketsync.key.pub`). Scegli una
@@ -244,6 +244,9 @@ pwsh -NoProfile -Command "Invoke-Pester installer/tests -Output Detailed"
 
 # workflow
 actionlint
+
+# sintassi di tutto il PowerShell (script e passi dei workflow)
+python3 scripts/check-powershell-syntax.py
 ```
 
 ### 8.5 Firma del codice (facoltativa)
@@ -262,7 +265,7 @@ serve comunque.
   dell'interfaccia.
 - **`windows`**: Pester su Windows PowerShell 5.1, `cargo test -p rs-git -p rs-store -p rs-core -p
   rs-ork`, MinGit, build dell'installer NSIS, smoke test (`installer/tests/smoke-windows.ps1`).
-- **`installer-scripts`** (Pester su Linux) e **`workflows`** (`actionlint`).
+- **`installer-scripts`** (Pester su Linux) e **`workflows`** (`actionlint` + `scripts/check-powershell-syntax.py`, che analizza con il parser di PowerShell tutti i `.ps1` e i passi `pwsh`/`powershell` dei workflow, compresi quelli dei job Windows senza `shell`).
 - Permessi `contents: read` ovunque; cache di cargo, pnpm e npm; nessun segreto.
 
 ## 10. Test su un Windows pulito

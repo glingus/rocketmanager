@@ -15,8 +15,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
-  # Versione del CLI di Tauri usata per costruire l'installer (il repository non lo ha tra le dipendenze).
-  TAURI_CLI_VERSION: "2"
 
 jobs:
   # --------------------------------------------------------------------------------------------
@@ -105,6 +103,13 @@ jobs:
         run: |
           bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
           ./actionlint -color
+      # Errori di sintassi nei passi PowerShell dei workflow e in tutti i .ps1: si scoprono qui,
+      # prima di arrivare al runner Windows.
+      - name: Sintassi PowerShell (workflow e script)
+        run: |
+          sudo apt-get install -y --no-install-recommends python3-yaml
+          python3 scripts/check-powershell-syntax.py --self-test
+          python3 scripts/check-powershell-syntax.py
 
   # --------------------------------------------------------------------------------------------
   installer-scripts:
@@ -167,7 +172,7 @@ jobs:
       - name: Costruisci l'installer NSIS
         working-directory: apps/desktop
         shell: pwsh
-        run: pnpm dlx "@tauri-apps/cli@${env:TAURI_CLI_VERSION}" build --ci --bundles nsis --config ../../installer/tauri.ci.conf.json
+        run: pnpm tauri build --ci --bundles nsis --config ../../installer/tauri.ci.conf.json
 
       - name: Individua l'installer
         id: installer
