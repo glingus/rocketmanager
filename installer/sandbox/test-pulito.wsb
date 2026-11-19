@@ -8,7 +8,7 @@
 
   Al primo accesso la sandbox esegue sandbox\test-pulito.cmd, che:
     1. lancia l'installazione (install.cmd local, stessa logica del comando unico);
-    2. esegue "%LOCALAPPDATA%\Programs\Rocket Sync\Rocket Sync.exe" con l'opzione self-test
+    2. esegue "%LOCALAPPDATA%\Rocket Sync\Rocket Sync.exe" con l'opzione self-test
        (a doppio trattino) e il file %USERPROFILE%\Desktop\selftest.json come risultato;
     3. copia il log di installazione sul Desktop e avvia l'app per la prova a mano.
   Prima di usarla imposta ROCKETSYNC_OWNER/ROCKETSYNC_REPO all'inizio di test-pulito.cmd.

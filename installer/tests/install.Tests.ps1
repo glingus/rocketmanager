@@ -134,12 +134,20 @@ Describe 'WebView2' {
 }
 
 Describe 'Ricerca dell''app installata' {
-    It 'elenca prima la cartella dichiarata dall''installer e poi i percorsi predefiniti per utente' {
-        $c = Get-AppCandidatePaths -LocalAppData 'C:\Users\x\AppData\Local' -InstallLocations @('D:\Custom', '', $null)
-        $c[0] | Should -Be 'D:\Custom\Rocket Sync.exe'
+    It 'senza registro usa %LOCALAPPDATA%\Rocket Sync (cartella del modello NSIS di Tauri, installMode currentUser)' {
+        $c = @(Get-AppCandidatePaths -LocalAppData 'C:\Users\x\AppData\Local')
+        $c.Count | Should -Be 1
+        $c[0] | Should -Be 'C:\Users\x\AppData\Local\Rocket Sync\Rocket Sync.exe'
+    }
+    It 'il registro ha la precedenza: DisplayIcon, poi InstallLocation (tra virgolette) con MainBinaryName' {
+        $c = Get-AppCandidatePaths -LocalAppData 'C:\L' -InstallLocations @('"D:\Custom\Rocket Sync"', '', $null) -Executables @('"D:\Custom\Rocket Sync\Rocket Sync.exe"') -MainBinaryName 'Altro.exe'
+        $c[0] | Should -Be 'D:\Custom\Rocket Sync\Rocket Sync.exe'
+        $c[1] | Should -Be 'D:\Custom\Rocket Sync\Altro.exe'
+        $c[-1] | Should -Be 'C:\L\Rocket Sync\Altro.exe'
         $c.Count | Should -Be 3
-        $c[1] | Should -Be 'C:\Users\x\AppData\Local\Programs\Rocket Sync\Rocket Sync.exe'
-        $c[2] | Should -Be 'C:\Users\x\AppData\Local\Rocket Sync\Rocket Sync.exe'
+    }
+    It 'non cerca piu'' in Programs\ (percorso non usato da Tauri)' {
+        (Get-AppCandidatePaths -LocalAppData 'C:\L' | Where-Object { $_ -like '*Programs*' }) | Should -BeNullOrEmpty
     }
     It 'ritorna il primo percorso esistente' {
         Find-FirstExisting -Paths @('a', 'b', 'c') -Exists { param($p) $p -eq 'b' -or $p -eq 'c' } | Should -Be 'b'

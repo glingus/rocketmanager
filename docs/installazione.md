@@ -53,7 +53,14 @@ Ogni passo scrive un messaggio in italiano e una riga nel log `%TEMP%\RocketSync
 5. **Collegamenti** sul desktop e nel menu Start: se mancano li crea, se puntano altrove li corregge.
 6. **Avvio** di Rocket Sync, che apre la configurazione guidata.
 
-Il file di installazione si trova in `%LOCALAPPDATA%\Programs\Rocket Sync\`.
+L'app si installa in `%LOCALAPPDATA%\Rocket Sync\` (eseguibile `Rocket Sync.exe`, disinstallatore
+`uninstall.exe`). Questo è ciò che fa il modello NSIS di Tauri 2 in modalità *per utente*
+(`installMode: currentUser`, verificato su `installer.nsi` di tauri-cli 2.12.6): cartella
+`$LOCALAPPDATA\${PRODUCTNAME}`, e nel registro `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Rocket Sync`
+i valori `DisplayName`, `DisplayVersion`, `DisplayIcon`, `InstallLocation` e `UninstallString` (tutti i
+percorsi tra virgolette) e `MainBinaryName`. Lo script cerca l'app prima lì e poi nel percorso
+predefinito. Il nome dell'eseguibile viene da `mainBinaryName` in `tauri.conf.json`: senza, Tauri
+userebbe il nome del crate (`rocket-sync.exe`).
 
 ### Codici di uscita
 
@@ -121,7 +128,7 @@ Da lì in poi l'app si apre dal collegamento sul desktop.
 ## 6. Disinstallare
 
 *Impostazioni → App → App installate → Rocket Sync → Disinstalla* (o il comando
-`"%LOCALAPPDATA%\Programs\Rocket Sync\uninstall.exe"`). La disinstallazione **non cancella i tuoi
+`"%LOCALAPPDATA%\Rocket Sync\uninstall.exe"`). La disinstallazione **non cancella i tuoi
 progetti** (le cartelle con i file `.ork`) né i repository su GitHub.
 
 ## 7. Problemi comuni
@@ -129,13 +136,13 @@ progetti** (le cartelle con i file `.ork`) né i repository su GitHub.
 | Problema | Cosa fare |
 |---|---|
 | **Proxy aziendale**: il download fallisce (codice 12/30/31) | Lo script usa il proxy di sistema con le credenziali di Windows. Controlla che il PC raggiunga `github.com` e `go.microsoft.com`; se il proxy richiede un'autenticazione diversa, scarica `RocketSync-setup.exe` da un altro PC e usa `install.cmd local` con `ROCKETSYNC_LOCAL_INSTALLER=<percorso>`. |
-| **Antivirus** blocca o mette in quarantena l'installer | È un falso positivo tipico dei programmi non firmati. Verifica l'impronta SHA-256 pubblicata nella release (`RocketSync-setup.exe.sha256`), poi ripristina il file dalla quarantena o aggiungi un'eccezione per `%LOCALAPPDATA%\Programs\Rocket Sync`. |
+| **Antivirus** blocca o mette in quarantena l'installer | È un falso positivo tipico dei programmi non firmati. Verifica l'impronta SHA-256 pubblicata nella release (`RocketSync-setup.exe.sha256`), poi ripristina il file dalla quarantena o aggiungi un'eccezione per `%LOCALAPPDATA%\Rocket Sync`. |
 | **OneDrive / Dropbox / Google Drive**: errori strani, file "in uso", sincronizzazioni doppie | Non tenere la cartella dei progetti dentro una cartella sincronizzata: i file `.ork` vengono riscritti a ogni salvataggio e il servizio li blocca o li duplica. L'app avvisa se la cartella scelta è in un disco sincronizzato; scegline una fuori (es. `C:\Users\<tu>\RocketSync`). |
 | Rocket Sync è aperto e non si chiude (codice 40) | Clic destro sull'icona nell'area di notifica → **Esci**, poi rilancia il comando. |
 | WebView2 non si installa (codice 21) | Installalo a mano da <https://developer.microsoft.com/microsoft-edge/webview2/> ("Evergreen Standalone Installer", x64), poi rilancia. |
 | Codice 13 | Il comando non conosce il repository delle release: usa quello fornito da chi mantiene il progetto, oppure `-Owner`/`-Repo`. |
 | Finestra bianca all'avvio | Di solito WebView2 mancante o corrotto: rilancia il comando di installazione (lo ripara). |
-| Qualsiasi altro errore | Manda il file `%TEMP%\RocketSync-install.log`; per un'analisi più completa esegui `"%LOCALAPPDATA%\Programs\Rocket Sync\Rocket Sync.exe" --self-test %USERPROFILE%\Desktop\selftest.json` e manda anche `selftest.json`. |
+| Qualsiasi altro errore | Manda il file `%TEMP%\RocketSync-install.log`; per un'analisi più completa esegui `"%LOCALAPPDATA%\Rocket Sync\Rocket Sync.exe" --self-test %USERPROFILE%\Desktop\selftest.json` e manda anche `selftest.json`. |
 
 ### Autodiagnosi (`--self-test`)
 

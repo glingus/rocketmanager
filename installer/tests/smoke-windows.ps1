@@ -32,20 +32,28 @@ function Check {
     }
 }
 
-function Get-InstalledExe {
-    $candidates = @("$env:LOCALAPPDATA\Programs\$appName\$appName.exe", "$env:LOCALAPPDATA\$appName\$appName.exe")
-    foreach ($c in $candidates) { if (Test-Path -LiteralPath $c) { return $c } }
+# Valori scritti dal modello NSIS di Tauri 2 (installMode currentUser, verificato su installer.nsi di
+# tauri-cli v2.12.6): chiave HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\<productName> con
+# DisplayName, DisplayIcon ("<cartella>\<exe>"), InstallLocation ("<cartella>"), UninstallString
+# ("<cartella>\uninstall.exe"), MainBinaryName; cartella predefinita %LOCALAPPDATA%\<productName>.
+function Get-UninstallEntry {
+    foreach ($root in 'HKCU:', 'HKLM:') {
+        $key = "$root\Software\Microsoft\Windows\CurrentVersion\Uninstall\$appName"
+        if (Test-Path -LiteralPath $key) {
+            $p = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue
+            if ($p -and $p.DisplayName -eq $appName) { return $p }
+        }
+    }
     return $null
 }
 
-function Get-UninstallEntry {
-    foreach ($root in 'HKCU:', 'HKLM:') {
-        $base = "$root\Software\Microsoft\Windows\CurrentVersion\Uninstall"
-        if (-not (Test-Path $base)) { continue }
-        foreach ($k in Get-ChildItem $base -ErrorAction SilentlyContinue) {
-            $p = Get-ItemProperty -Path $k.PSPath -ErrorAction SilentlyContinue
-            if ($p -and $p.DisplayName -eq $appName) { return $p }
-        }
+function Get-InstalledExe {
+    $default = "$env:LOCALAPPDATA\$appName\$appName.exe"
+    if (Test-Path -LiteralPath $default) { return $default }
+    $e = Get-UninstallEntry
+    if ($e -and $e.DisplayIcon) {
+        $icon = ([string]$e.DisplayIcon).Trim('"')
+        if (Test-Path -LiteralPath $icon) { return $icon }
     }
     return $null
 }
@@ -79,7 +87,7 @@ $code = Invoke-Install -LocalInstaller $setup
 Check 'install.cmd local termina con 0' ($code -eq 0) "codice $code"
 $exe = Get-InstalledExe
 Check 'eseguibile installato' ($null -ne $exe) $exe
-Check 'installato nel profilo utente (nessun amministratore)' ($exe -like "$env:LOCALAPPDATA*") $exe
+Check 'installato nel profilo utente, in %LOCALAPPDATA%\Rocket Sync' ($exe -eq "$env:LOCALAPPDATA\$appName\$appName.exe") $exe
 $installDir = Split-Path -Parent $exe
 Check 'nella cartella c''e'' il disinstallatore' (Test-Path -LiteralPath (Join-Path $installDir 'uninstall.exe')) $installDir
 
@@ -102,7 +110,11 @@ Check 'log di installazione scritto' (Test-Path -LiteralPath $logPath) $logPath
 Copy-Item -LiteralPath $logPath -Destination (Join-Path $OutDir 'RocketSync-install.log') -Force
 
 $entry = Get-UninstallEntry
-Check 'voce in "App installate"' ($null -ne $entry) $(if ($entry) { "versione $($entry.DisplayVersion)" } else { '' })
+Check 'voce in "App installate" (HKCU, chiave "Rocket Sync")' ($null -ne $entry) $(if ($entry) { "versione $($entry.DisplayVersion)" } else { '' })
+if ($entry) {
+    Check 'InstallLocation punta alla cartella dell''app' (([string]$entry.InstallLocation).Trim('"') -eq $installDir) ([string]$entry.InstallLocation)
+    Check 'DisplayIcon punta all''eseguibile' (([string]$entry.DisplayIcon).Trim('"') -eq $exe) ([string]$entry.DisplayIcon)
+}
 
 # 2. Seconda esecuzione: aggiornamento/riparazione, idempotente
 Write-Host "`n-- Riesecuzione (riparazione) --"

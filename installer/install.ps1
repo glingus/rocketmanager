@@ -207,16 +207,21 @@ function Get-WebView2VersionFromRegistry {
     return $null
 }
 
-# Percorsi candidati dell'eseguibile installato (per utente).
+# Percorsi candidati dell'eseguibile installato (per utente). Dal modello NSIS di Tauri 2
+# (installer.nsi, modalita' currentUser): cartella "$LOCALAPPDATA\<productName>", eseguibile
+# "<mainBinaryName>.exe", e nella chiave HKCU\...\Uninstall\<productName> i valori InstallLocation
+# (tra virgolette), DisplayIcon e MainBinaryName. Il registro ha la precedenza sul percorso predefinito.
 function Get-AppCandidatePaths {
-    param([string]$LocalAppData, [string[]]$InstallLocations = @())
-    $exeName = "$($script:AppName).exe"
+    param([string]$LocalAppData, [string[]]$InstallLocations = @(), [string[]]$Executables = @(), [string]$MainBinaryName = '')
+    $exeName = if ([string]::IsNullOrWhiteSpace($MainBinaryName)) { "$($script:AppName).exe" } else { $MainBinaryName.Trim().Trim('"') }
     $root = $LocalAppData.TrimEnd('\', '/')
     $list = @()
+    foreach ($e in $Executables) {
+        if (-not [string]::IsNullOrWhiteSpace($e)) { $list += $e.Trim().Trim('"') }
+    }
     foreach ($loc in $InstallLocations) {
         if (-not [string]::IsNullOrWhiteSpace($loc)) { $list += ($loc.Trim().Trim('"').TrimEnd('\', '/') + '\' + $exeName) }
     }
-    $list += "$root\Programs\$($script:AppName)\$exeName"
     $list += "$root\$($script:AppName)\$exeName"
     return $list
 }
@@ -463,17 +468,20 @@ function Invoke-NsisInstaller {
 }
 
 function Find-InstalledApp {
-    $locations = @()
+    $locations = @(); $executables = @(); $mainBinary = ''
     foreach ($root in 'HKCU:', 'HKLM:') {
         $uninstall = "$root\Software\Microsoft\Windows\CurrentVersion\Uninstall"
-        if (Test-Path $uninstall) {
-            foreach ($k in Get-ChildItem $uninstall -ErrorAction SilentlyContinue) {
-                $p = Get-ItemProperty -Path $k.PSPath -ErrorAction SilentlyContinue
-                if ($p -and $p.DisplayName -eq $script:AppName -and $p.InstallLocation) { $locations += [string]$p.InstallLocation }
+        $key = "$uninstall\$($script:AppName)"
+        if (Test-Path -LiteralPath $key) {
+            $p = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue
+            if ($p) {
+                if ($p.InstallLocation) { $locations += [string]$p.InstallLocation }
+                if ($p.DisplayIcon) { $executables += ([string]$p.DisplayIcon -replace ',\d+$', '') }
+                if ($p.MainBinaryName -and -not $mainBinary) { $mainBinary = [string]$p.MainBinaryName }
             }
         }
     }
-    $candidates = Get-AppCandidatePaths -LocalAppData $env:LOCALAPPDATA -InstallLocations $locations
+    $candidates = Get-AppCandidatePaths -LocalAppData $env:LOCALAPPDATA -InstallLocations $locations -Executables $executables -MainBinaryName $mainBinary
     return Find-FirstExisting -Paths $candidates
 }
 

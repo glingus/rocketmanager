@@ -6,7 +6,7 @@ set "ROCKETSYNC_REPO="
 rem Non avviare l'app durante l'installazione: prima il test automatico.
 set "ROCKETSYNC_NO_LAUNCH=1"
 
-set "APP=%LOCALAPPDATA%\Programs\Rocket Sync\Rocket Sync.exe"
+set "APP=%LOCALAPPDATA%\Rocket Sync\Rocket Sync.exe"
 set "SELFTEST=%USERPROFILE%\Desktop\selftest.json"
 
 echo.

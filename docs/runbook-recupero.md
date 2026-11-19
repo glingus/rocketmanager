@@ -11,8 +11,8 @@
 
 | Cosa | Dove (Windows) |
 |---|---|
-| Programma | `%LOCALAPPDATA%\Programs\Rocket Sync\` (installazione per utente) |
-| Git incluso (MinGit) | `%LOCALAPPDATA%\Programs\Rocket Sync\resources\mingit\cmd\git.exe` |
+| Programma | `%LOCALAPPDATA%\Rocket Sync\` (installazione per utente) |
+| Git incluso (MinGit) | `%LOCALAPPDATA%\Rocket Sync\resources\mingit\cmd\git.exe` |
 | **Cartella dati dell'app** | `%APPDATA%\it.rocketsync.app\` |
 | Database locale (progetti collegati, journal, conflitti, guardia) | `%APPDATA%\it.rocketsync.app\rocketsync.db` |
 | Configurazione (URL Supabase, chiave pubblica, organizzazione, updater) | `%APPDATA%\it.rocketsync.app\config.json` (facoltativo, prevale sulla compilazione) |
@@ -30,7 +30,7 @@ Per aprire la cartella dati: `Win+R` → `%APPDATA%\it.rocketsync.app`.
 Nel terminale, per brevità negli esempi:
 
 ```bat
-set GIT="%LOCALAPPDATA%\Programs\Rocket Sync\resources\mingit\cmd\git.exe"
+set GIT="%LOCALAPPDATA%\Rocket Sync\resources\mingit\cmd\git.exe"
 cd /d "C:\Users\<utente>\RocketSync\<Progetto>"
 ```
 
@@ -61,7 +61,7 @@ L'archivio contiene (tutto con i segreti oscurati da `redact`):
 Se l'app **non parte**, da prompt:
 
 ```bat
-"%LOCALAPPDATA%\Programs\Rocket Sync\Rocket Sync.exe" --self-test %USERPROFILE%\Desktop\selftest.json
+"%LOCALAPPDATA%\Rocket Sync\Rocket Sync.exe" --self-test %USERPROFILE%\Desktop\selftest.json
 ```
 
 crea un controllo dell'installazione. In questo caso mandate anche `%APPDATA%\it.rocketsync.app\logs\rocketsync.log`.
@@ -149,7 +149,7 @@ Quando nasce un conflitto, il core mette la versione locale al sicuro sul server
 Servono le credenziali. L'app le dà a Git facendosi chiamare come **askpass**: nello **stesso prompt** impostate (solo per quella finestra):
 
 ```bat
-set "GIT_ASKPASS=%LOCALAPPDATA%\Programs\Rocket Sync\Rocket Sync.exe"
+set "GIT_ASKPASS=%LOCALAPPDATA%\Rocket Sync\Rocket Sync.exe"
 set ROCKETSYNC_ASKPASS=1
 set GIT_TERMINAL_PROMPT=0
 ```
