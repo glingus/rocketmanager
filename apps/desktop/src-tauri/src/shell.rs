@@ -55,6 +55,9 @@ pub struct ShellParts {
     pub config: AppConfig,
     pub git_version: Option<String>,
     pub settings: Arc<RwLock<AppSettings>>,
+    /// Base URL of the Git hosting, `https://github.com` unless overridden (development/tests:
+    /// `ROCKETSYNC_REMOTE_BASE`, e.g. `file:///srv/repos`).
+    pub remote_base: Option<String>,
 }
 
 /// Application services.
@@ -68,6 +71,7 @@ pub struct Shell {
     config: AppConfig,
     git_version: Option<String>,
     pub settings: Arc<RwLock<AppSettings>>,
+    remote_base: Option<String>,
     openrocket: Mutex<Option<OpenRocketInfo>>,
 }
 
@@ -89,6 +93,7 @@ impl Shell {
             config: p.config,
             git_version: p.git_version,
             settings: p.settings,
+            remote_base: p.remote_base,
             openrocket: Mutex::new(None),
         }
     }
@@ -207,7 +212,9 @@ impl Shell {
             .link_project(LinkRequest {
                 project_id: project_id.to_string(),
                 repo_full_name: repo_full_name.to_string(),
-                remote_url: None,
+                remote_url: self.remote_base.as_deref().map(|b| {
+                    format!("{}/{}.git", b.trim_end_matches('/'), repo_full_name)
+                }),
                 folder: folder.to_string(),
                 allow_synced_drive: false,
             })

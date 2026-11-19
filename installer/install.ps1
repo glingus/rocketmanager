@@ -67,6 +67,7 @@ $script:MinWindowsBuild = 19044          # Windows 10 21H2
 $script:WebView2ClientId = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
 $script:WebView2BootstrapperUrl = 'https://go.microsoft.com/fwlink/p/?LinkId=2124703'
 $script:LogPath = Join-Path $env:TEMP 'RocketSync-install.log'
+$script:DownloadRetries = 3
 
 # Codici di uscita
 $script:Exit = @{
@@ -279,7 +280,7 @@ function Get-SystemProxyFor {
 }
 
 function Invoke-Download {
-    param([string]$Url, [string]$OutFile, [int]$Retries = 3)
+    param([string]$Url, [string]$OutFile, [int]$Retries = $script:DownloadRetries)
     $ProgressPreference = 'SilentlyContinue'   # su PowerShell 5.1 la barra rallenta molto i download
     $proxy = Get-SystemProxyFor -Url $Url
     if ($proxy) { Write-Log "Uso il proxy di sistema: $proxy" }

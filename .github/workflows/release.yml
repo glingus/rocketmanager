@@ -168,7 +168,7 @@ jobs:
           # Script di installazione con il repository delle release già impostato.
           sed -e "s|@@OWNER@@|${owner}|g" -e "s|@@REPO@@|${repo}|g" installer/install.ps1 > release/install.ps1
           sed -e "s|@@OWNER@@|${owner}|g" -e "s|@@REPO@@|${repo}|g" installer/install.cmd > release/install.cmd
-          if grep -q '@@' release/install.ps1 release/install.cmd; then echo "::error::Segnaposto non sostituiti"; exit 1; fi
+          if grep -qE '@@(OWNER|REPO)@@' release/install.ps1 release/install.cmd; then echo "::error::Segnaposto non sostituiti"; exit 1; fi
           ls -l release
           cat release/latest.json
 

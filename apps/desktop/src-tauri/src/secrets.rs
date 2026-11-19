@@ -96,10 +96,12 @@ impl<R: RawEntries> SecretStore for Chunked<R> {
 }
 
 /// Credential Manager (Windows) / Keychain (macOS) entries.
+#[cfg(any(windows, target_os = "macos"))]
 pub struct KeyringRaw {
     service: String,
 }
 
+#[cfg(any(windows, target_os = "macos"))]
 impl KeyringRaw {
     pub fn new(service: &str) -> Self {
         Self {
@@ -111,6 +113,7 @@ impl KeyringRaw {
     }
 }
 
+#[cfg(any(windows, target_os = "macos"))]
 impl RawEntries for KeyringRaw {
     fn read(&self, name: &str) -> Result<Option<String>, SecretError> {
         match self.entry(name)?.get_password() {
@@ -132,9 +135,49 @@ impl RawEntries for KeyringRaw {
     }
 }
 
-/// The store used by the application.
-pub fn system_store() -> Chunked<KeyringRaw> {
-    Chunked::new(KeyringRaw::new(SERVICE))
+/// Development fallback for platforms without a native credential store (Linux): one process-wide
+/// in-memory map. **Nothing is persisted**: the user signs in again at every start.
+#[cfg(not(any(windows, target_os = "macos")))]
+pub struct ProcessRaw;
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn process_map() -> &'static Mutex<HashMap<String, String>> {
+    static MAP: std::sync::OnceLock<Mutex<HashMap<String, String>>> = std::sync::OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+impl RawEntries for ProcessRaw {
+    fn read(&self, name: &str) -> Result<Option<String>, SecretError> {
+        Ok(process_map().lock().map_err(|_| SecretError("lock".into()))?.get(name).cloned())
+    }
+    fn write(&self, name: &str, value: &str) -> Result<(), SecretError> {
+        process_map().lock().map_err(|_| SecretError("lock".into()))?.insert(name.to_string(), value.to_string());
+        Ok(())
+    }
+    fn remove(&self, name: &str) -> Result<(), SecretError> {
+        process_map().lock().map_err(|_| SecretError("lock".into()))?.remove(name);
+        Ok(())
+    }
+}
+
+/// The backend of [`system_store`].
+#[cfg(any(windows, target_os = "macos"))]
+pub type SystemRaw = KeyringRaw;
+#[cfg(not(any(windows, target_os = "macos")))]
+pub type SystemRaw = ProcessRaw;
+
+/// The store used by the application: Windows Credential Manager / macOS Keychain; in-process
+/// memory on other platforms (development only).
+pub fn system_store() -> Chunked<SystemRaw> {
+    #[cfg(any(windows, target_os = "macos"))]
+    {
+        Chunked::new(KeyringRaw::new(SERVICE))
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        Chunked::new(ProcessRaw)
+    }
 }
 
 /// In-memory backend with an optional per-entry size limit (tests).

@@ -190,6 +190,54 @@ Describe 'Get-InstallerFile con un installer locale' {
     }
 }
 
+Describe 'Get-InstallerFile con download da un server locale' {
+    BeforeAll {
+        $script:payload = [byte[]](1..250)
+        $script:payloadHash = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($script:payload)).Replace('-', '').ToLower()
+        $port = Get-Random -Minimum 20000 -Maximum 40000
+        $script:base = "http://127.0.0.1:$port"
+        $script:listener = New-Object System.Net.HttpListener
+        $script:listener.Prefixes.Add("$script:base/")
+        $script:listener.Start()
+        $script:worker = [powershell]::Create()
+        $null = $script:worker.AddScript({
+                param($l, $payload, $hash, $wrongHash)
+                while ($l.IsListening) {
+                    try { $ctx = $l.GetContext() } catch { break }
+                    $path = $ctx.Request.Url.AbsolutePath
+                    $body = $null
+                    if ($path -eq '/ok/RocketSync-setup.exe') { $body = $payload }
+                    elseif ($path -eq '/ok/RocketSync-setup.exe.sha256') { $body = [System.Text.Encoding]::ASCII.GetBytes("$hash  RocketSync-setup.exe`n") }
+                    elseif ($path -eq '/bad/RocketSync-setup.exe') { $body = $payload }
+                    elseif ($path -eq '/bad/RocketSync-setup.exe.sha256') { $body = [System.Text.Encoding]::ASCII.GetBytes("$wrongHash  RocketSync-setup.exe`n") }
+                    if ($null -eq $body) { $ctx.Response.StatusCode = 404; $ctx.Response.Close() }
+                    else { $ctx.Response.OutputStream.Write($body, 0, $body.Length); $ctx.Response.Close() }
+                }
+            }).AddArgument($script:listener).AddArgument($script:payload).AddArgument($script:payloadHash).AddArgument('f' * 64)
+        $script:job = $script:worker.BeginInvoke()
+        $script:DownloadRetries = 1
+        $script:src = { param($dir) [pscustomobject]@{ Urls = [pscustomobject]@{ Installer = "$($script:base)/$dir/RocketSync-setup.exe"; Hash = "$($script:base)/$dir/RocketSync-setup.exe.sha256" } } }
+    }
+    AfterAll {
+        $script:listener.Stop(); $script:listener.Close(); $script:worker.Dispose()
+    }
+    It 'scarica l''installer e verifica l''hash pubblicato' {
+        $f = Get-InstallerFile -Source (& $script:src 'ok') -LocalInstaller '' -Sha256 ''
+        (Get-Item $f).Length | Should -Be 250
+        (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash.ToLower() | Should -Be $script:payloadHash
+    }
+    It 'scarta il file e da 31 se l''hash pubblicato non coincide' {
+        $err = $null
+        try { Get-InstallerFile -Source (& $script:src 'bad') -LocalInstaller '' -Sha256 '' } catch { $err = $_ }
+        Get-InstallErrorCode $err | Should -Be 31
+    }
+    It 'da 30 se il download non riesce (404)' {
+        $err = $null
+        try { Get-InstallerFile -Source (& $script:src 'assente') -LocalInstaller '' -Sha256 '' } catch { $err = $_ }
+        Get-InstallErrorCode $err | Should -Be 30
+    }
+}
+
 Describe 'Invoke-RocketSyncInstall (flusso con i passi simulati)' {
     BeforeEach {
         Mock Assert-Environment {}

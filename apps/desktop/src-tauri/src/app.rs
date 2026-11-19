@@ -225,6 +225,7 @@ async fn build_shell(app: AppHandle, minimize_flag: Arc<std::sync::atomic::Atomi
         config,
         git_version,
         settings,
+        remote_base: std::env::var("ROCKETSYNC_REMOTE_BASE").ok().filter(|v| !v.trim().is_empty()),
     }))
 }
 
