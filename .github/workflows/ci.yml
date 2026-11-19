@@ -161,7 +161,7 @@ jobs:
         shell: pwsh
         run: |
           $script = 'apps/desktop/src-tauri/scripts/fetch-mingit.ps1'
-          if (-not (Test-Path $script)) { throw "Manca $script: serve per includere Git nell'installer." }
+          if (-not (Test-Path $script)) { throw "Manca ${script}: serve per includere Git nell'installer." }
           & $script
 
       - name: Costruisci l'installer NSIS
