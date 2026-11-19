@@ -304,9 +304,7 @@ async fn build_shell(
         config,
         git_version,
         settings,
-        remote_base: std::env::var("ROCKETSYNC_REMOTE_BASE")
-            .ok()
-            .filter(|v| !v.trim().is_empty()),
+        remote_base,
     }))
 }
 
