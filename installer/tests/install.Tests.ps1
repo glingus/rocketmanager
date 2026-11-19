@@ -312,11 +312,13 @@ Describe 'Compatibilita'' con Windows PowerShell 5.1 e con "irm | iex"' {
         $script:ParseErrors.Count | Should -Be 0
     }
     It 'non usa costrutti introdotti dopo la 5.1' {
+        # Si confrontano i NOMI dei tipi AST: su Windows PowerShell 5.1 le classi TernaryExpressionAst e
+        # PipelineChainAst non esistono, quindi un letterale [..] farebbe fallire il test stesso.
+        $newer = @('TernaryExpressionAst', 'PipelineChainAst')
         $bad = $script:Ast.FindAll({
                 param($n)
-                $n -is [System.Management.Automation.Language.TernaryExpressionAst] -or
-                $n -is [System.Management.Automation.Language.PipelineChainAst] -or
-                $n -is [System.Management.Automation.Language.MemberExpressionAst] -and $n.NullConditional
+                ($newer -contains $n.GetType().Name) -or
+                ($n.GetType().Name -eq 'MemberExpressionAst' -and $n.PSObject.Properties['NullConditional'] -and $n.NullConditional)
             }, $true)
         $bad.Count | Should -Be 0
         $script:Raw | Should -Not -Match '\?\?'

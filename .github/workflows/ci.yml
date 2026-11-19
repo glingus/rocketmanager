@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Dipendenze di sistema (Tauri, PostgreSQL 16, pgTAP)
         run: |
@@ -50,7 +50,7 @@ jobs:
       - name: Test del database (pgTAP su un PostgreSQL 16 usa-e-getta)
         run: supabase/scripts/test-db.sh
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -65,8 +65,8 @@ jobs:
       - name: Script di release (node --test)
         run: node --test "scripts/*.test.mjs"
 
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -87,7 +87,7 @@ jobs:
         run: pnpm --filter @rocketsync/desktop e2e
       - name: Screenshot dei test end-to-end
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-screenshots
           path: apps/desktop/e2e/screenshots
@@ -100,7 +100,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: actionlint
         run: |
           bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Pester (PowerShell 7)
         shell: pwsh
         run: |
@@ -129,7 +129,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Windows PowerShell 5.1: la stessa versione che eseguirà install.ps1 sui PC del team.
       - name: Script di installazione (Pester su Windows PowerShell 5.1)
@@ -150,8 +150,8 @@ jobs:
       - name: Test dei crate (rs-git, rs-store, rs-core, rs-ork)
         run: cargo test -p rs-git -p rs-store -p rs-core -p rs-ork
 
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -189,7 +189,7 @@ jobs:
 
       - name: Esito dello smoke test
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-smoke
           path: ${{ runner.temp }}/smoke
@@ -197,7 +197,7 @@ jobs:
           retention-days: 14
 
       - name: Installer di prova
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: installer-ci
           path: ${{ steps.installer.outputs.path }}
