@@ -77,7 +77,7 @@ settings → GitHub Apps → New GitHub App*):
 |---|---|
 | Homepage URL | a piacere (es. la pagina del progetto) |
 | Callback URL | `https://<ref>.supabase.co/auth/v1/callback` (login via Supabase) |
-| Expire user authorization tokens | **attivo** (serve per `github-token-refresh`) |
+| Expire user authorization tokens | **disattivo** (consigliato: Git funziona anche se Supabase è irraggiungibile; vedi `docs/sicurezza.md` §7) — se lo attivi, il rinnovo passa da `github-token-refresh` |
 | Request user authorization (OAuth) during installation | attivo |
 | Webhook → Active | sì |
 | Webhook URL | `https://<ref>.supabase.co/functions/v1/github-webhook` |

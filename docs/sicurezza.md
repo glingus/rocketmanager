@@ -171,11 +171,18 @@ persona ha già scaricato: quelli restano sul suo PC.
 6. **Il ritorno OAuth usa un server su loopback**: durante l'accesso, un altro programma dello stesso PC potrebbe tentare di collegarsi alla porta.
    PKCE impedisce di usare un codice rubato senza il verifier, che resta nel processo.
 7. **`style-src 'unsafe-inline'`** è presente nella CSP (CSS Modules e stili dei componenti).
-8. **Il token GitHub dura ~8 ore** e si rinnova solo tramite Supabase: se Supabase è irraggiungibile o sospeso a lungo, le operazioni Git verso GitHub si fermano
-   a scadenza (il lavoro locale e le versioni in attesa restano al sicuro). Vedi il runbook.
+8. **Scadenza del token GitHub: scelta di configurazione.** La GitHub App può emettere token che scadono dopo ~8 ore o token senza
+   scadenza; il codice gestisce entrambi (`ensure_github_token` non rinnova un token senza scadenza).
+   - **Consigliato: scadenza disattivata.** Rispetta il principio local-first del piano: la sincronizzazione Git non dipende da Supabase.
+     Contropartita: un token rubato resta valido finché non viene revocato (l'utente da GitHub → *Settings → Applications*, oppure
+     l'admin rimuovendo il membro dall'organizzazione o disinstallando/reinstallando l'app).
+   - Con la scadenza attiva il token si rinnova solo tramite la Edge Function `github-token-refresh`: se Supabase è irraggiungibile o
+     sospeso, dopo ~8 ore le operazioni Git verso GitHub si fermano (il lavoro locale e le versioni in attesa restano al sicuro).
 9. **Chi ha il PC sbloccato ha accesso a tutto**: Credential Manager protegge dagli altri utenti Windows, non dall'utente stesso o da un malware nello stesso account.
 10. La **rimozione di un membro non invalida i token già emessi**: la RLS gli toglie subito i dati e `manage-members` gli toglie l'accesso al repository, ma la sua sessione Supabase e il suo token
-    GitHub restano validi fino alla scadenza (il token GitHub dura ~8 ore). Per un PC rubato serve anche disconnettere la sessione dal pannello Supabase (vedi il runbook).
+    GitHub resta valido fino alla scadenza (~8 ore) o, senza scadenza, finché non viene revocato: la rimozione dal repository blocca
+    comunque push e fetch. Per un PC rubato serve anche disconnettere la sessione dal pannello Supabase e revocare l'autorizzazione
+    dell'app su GitHub (vedi il runbook).
 
 ## 8. Checklist di messa in produzione
 
@@ -191,7 +198,7 @@ persona ha già scaricato: quelli restano sul suo PC.
 
 **GitHub**
 - [ ] GitHub App con i permessi minimi (Administration, Contents e Members: lettura e scrittura; nessun permesso account), installata **solo** nell'organizzazione dei progetti.
-- [ ] Scadenza dei token utente **attiva** (altrimenti il rinnovo non serve).
+- [ ] Scadenza dei token utente: **disattivata** (consigliato, Git indipendente da Supabase) oppure attiva con la Edge Function `github-token-refresh` pubblicata (vedi §7 punto 8).
 - [ ] Webhook dell'app verso `…/functions/v1/github-webhook` con il segreto; evento `push`.
 - [ ] Chiave privata dell'app scaricata e archiviata in un luogo sicuro, non nel repository.
 - [ ] Piano dell'organizzazione valutato per la protezione dei branch (limite §7.1).

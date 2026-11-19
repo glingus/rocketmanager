@@ -228,7 +228,7 @@ Il piano Free **sospende il progetto dopo 7 giorni senza attività**. Cosa succe
 |---|---|
 | Accesso con GitHub, note, card, membri, notifiche, Activity Log | **Non disponibili** finché il progetto non viene ripristinato. L'app lo gestisce senza bloccarsi. |
 | File, cartelle, copie di sicurezza, Version History locale | **Funzionano**: sono sul PC. |
-| Pubblicare e ricevere versioni (Git ↔ GitHub) | **Funzionano** finché il token GitHub è valido. Il token dura circa 8 ore e si rinnova tramite la Edge Function `github-token-refresh` di Supabase: se non si può rinnovare, dopo la scadenza i push e i fetch verso GitHub falliscono. |
+| Pubblicare e ricevere versioni (Git ↔ GitHub) | **Funzionano** se la GitHub App è configurata con i token senza scadenza (consigliato, vedi `docs/sicurezza.md` §7). Con la scadenza attiva il token dura circa 8 ore e si rinnova tramite la Edge Function `github-token-refresh`: se non si può rinnovare, dopo la scadenza i push e i fetch verso GitHub falliscono. |
 | Versioni create mentre non si può inviare | Restano **in attesa** sul PC e partono da sole appena possibile; i numeri si ricalcolano all'invio. |
 | Webhook di GitHub verso `github-webhook` | Non arriva: l'indice `versions` e le notifiche restano indietro (vedi §7 per recuperarle). |
 
