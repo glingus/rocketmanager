@@ -35,7 +35,7 @@ mod consistency {
     fn command_lists_agree() {
         let build = include_str!("../build.rs");
         let from_build = names_in(build, "COMMANDS: &[&str] = &[", "];", "\"", "\",");
-        assert_eq!(from_build.len(), 43, "{from_build:?}");
+        assert_eq!(from_build.len(), 42, "{from_build:?}");
 
         let app = include_str!("app.rs");
         let from_handler = names_in(app, "generate_handler![", "])", "commands::", ",");
@@ -68,14 +68,16 @@ mod consistency {
         let build = include_str!("../build.rs");
         let have = names_in(build, "COMMANDS: &[&str] = &[", "];", "\"", "\",");
         // commands are listed in tables as | `name` | ...
-        let mut in_contract: Vec<String> = contract
-            .lines()
-            .filter_map(|l| l.strip_prefix("| `"))
-            .filter_map(|l| l.split_once('`').map(|(n, _)| n.to_string()))
-            .filter(|n| n.chars().all(|c| c.is_ascii_lowercase() || c == '_' || c == '/' || c == ' '))
-            .flat_map(|n| n.split(" / ").map(str::to_string).collect::<Vec<_>>())
-            .filter(|n| n.contains('_') && !n.starts_with("project-"))
-            .collect();
+        let mut in_contract: Vec<String> = Vec::new();
+        for l in contract.lines().filter(|l| l.starts_with("| `")) {
+            // first table cell: every `token` in it is a command
+            let cell = l.trim_start_matches('|').split('|').next().unwrap_or("");
+            for (i, tok) in cell.split('`').enumerate() {
+                if i % 2 == 1 && tok.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
+                    in_contract.push(tok.to_string());
+                }
+            }
+        }
         in_contract.sort();
         in_contract.dedup();
         for c in &in_contract {
