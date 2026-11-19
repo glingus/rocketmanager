@@ -29,9 +29,12 @@ supabase/
 2. **Autenticazione con GitHub**: *Authentication → Providers → GitHub*. Usa il Client ID e il
    Client secret della **stessa GitHub App** registrata al §3 (il login unico serve sia per Supabase
    sia per Git). Come *Callback URL* di quell'app metti quella mostrata da Supabase
-   (`https://<ref>.supabase.co/auth/v1/callback`). In *Authentication → URL Configuration* aggiungi
-   gli URL di ritorno dell'app desktop (`rocketsync://auth/callback` e, in sviluppo,
-   `http://localhost:1420`).
+   (`https://<ref>.supabase.co/auth/v1/callback`). In *Authentication → URL Configuration* imposta
+   come *Site URL* `http://127.0.0.1:53682/callback` e aggiungi tra i *Redirect URLs* **tutti e dieci**
+   gli indirizzi di ritorno su loopback che l'app prova in ordine (accesso con PKCE, vedi
+   [`apps/desktop/src-tauri/README.md`](../apps/desktop/src-tauri/README.md)):
+   `http://127.0.0.1:53682/callback`, `http://127.0.0.1:53683/callback`, … fino a
+   `http://127.0.0.1:53691/callback`.
 3. Installa la CLI (`npm i -g supabase` oppure scoop su Windows) e collega la cartella:
 
    ```bash

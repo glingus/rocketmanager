@@ -6,6 +6,11 @@ name: Release
 # Variabili del repository (Settings -> Secrets and variables -> Actions -> Variables):
 #   RELEASES_REPO     repository che ospita le release, nella forma proprietario/nome
 #   UPDATER_PUBKEY    chiave PUBBLICA dell'updater (contenuto del file .pub generato da `tauri signer generate`)
+#   SUPABASE_URL      https://<ref>.supabase.co  (Supabase -> Project Settings -> API)
+#   SUPABASE_ANON_KEY chiave pubblica "anon" dello stesso pannello (pubblica per design)
+#   PROJECTS_ORG      organizzazione GitHub che ospita i repository dei progetti
+# SUPABASE_*, PROJECTS_ORG, RELEASES_REPO e UPDATER_PUBKEY vengono incorporati nell'app in fase di
+# compilazione (variabili ROCKETSYNC_*, lette dalla shell con option_env!).
 # Segreti:
 #   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD   chiave privata dell'updater
 #   RELEASES_TOKEN    token con permesso di scrivere le release su RELEASES_REPO
@@ -32,6 +37,9 @@ jobs:
     env:
       RELEASES_REPO: ${{ vars.RELEASES_REPO }}
       UPDATER_PUBKEY: ${{ vars.UPDATER_PUBKEY }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      PROJECTS_ORG: ${{ vars.PROJECTS_ORG }}
     steps:
       - uses: actions/checkout@v5
 
@@ -44,6 +52,9 @@ jobs:
           $errors = @()
           if ([string]::IsNullOrWhiteSpace($env:RELEASES_REPO) -or $env:RELEASES_REPO -notmatch '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$') { $errors += 'La variabile RELEASES_REPO manca o non e'' nella forma proprietario/nome.' }
           if ([string]::IsNullOrWhiteSpace($env:UPDATER_PUBKEY)) { $errors += 'La variabile UPDATER_PUBKEY (chiave pubblica dell''updater) manca.' }
+          if ([string]::IsNullOrWhiteSpace($env:SUPABASE_URL) -or $env:SUPABASE_URL.Trim() -notmatch '^https://[A-Za-z0-9.-]+$') { $errors += 'La variabile SUPABASE_URL manca o non e'' nella forma https://<ref>.supabase.co (senza / finale).' }
+          if ([string]::IsNullOrWhiteSpace($env:SUPABASE_ANON_KEY)) { $errors += 'La variabile SUPABASE_ANON_KEY (chiave pubblica anon di Supabase) manca.' }
+          if ([string]::IsNullOrWhiteSpace($env:PROJECTS_ORG) -or $env:PROJECTS_ORG.Trim() -notmatch '^[A-Za-z0-9][A-Za-z0-9-]*$') { $errors += 'La variabile PROJECTS_ORG (organizzazione GitHub dei progetti) manca o non e'' valida.' }
           if ($env:HAS_KEY -ne 'true') { $errors += 'Il segreto TAURI_SIGNING_PRIVATE_KEY manca.' }
           if ($env:HAS_TOKEN -ne 'true') { $errors += 'Il segreto RELEASES_TOKEN manca.' }
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
@@ -90,6 +101,16 @@ jobs:
           }
           $cfg | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 release-config.json
 
+          # Configurazione incorporata nell'app (la shell la legge con option_env! in fase di compilazione;
+          # l'updater usa queste variabili, non plugins.updater). Valori ripuliti da spazi e a-capo.
+          $pub = $env:UPDATER_PUBKEY.Trim()
+          if ($pub -match '[\r\n]') { throw 'UPDATER_PUBKEY contiene a-capo interni: incolla la chiave su una sola riga.' }
+          "ROCKETSYNC_UPDATER_PUBKEY=$pub" >> $env:GITHUB_ENV
+          "ROCKETSYNC_UPDATER_ENDPOINT=https://github.com/$($env:RELEASES_REPO.Trim())/releases/latest/download/latest.json" >> $env:GITHUB_ENV
+          "ROCKETSYNC_SUPABASE_URL=$($env:SUPABASE_URL.Trim())" >> $env:GITHUB_ENV
+          "ROCKETSYNC_SUPABASE_ANON_KEY=$($env:SUPABASE_ANON_KEY.Trim())" >> $env:GITHUB_ENV
+          "ROCKETSYNC_GITHUB_ORG=$($env:PROJECTS_ORG.Trim())" >> $env:GITHUB_ENV
+
       - name: Costruisci e firma l'installer NSIS
         working-directory: apps/desktop
         shell: pwsh
@@ -118,7 +139,7 @@ jobs:
         env:
           INSTALLER_PATH: ${{ github.workspace }}\release\RocketSync-setup.exe
         run: |
-          & .\installer\tests\smoke-windows.ps1 -Installer $env:INSTALLER_PATH -OutDir "$env:RUNNER_TEMP\smoke"
+          & .\installer\tests\smoke-windows.ps1 -Installer $env:INSTALLER_PATH -OutDir "$env:RUNNER_TEMP\smoke" -RequireConfigOk
           exit $LASTEXITCODE
 
       - uses: actions/upload-artifact@v6

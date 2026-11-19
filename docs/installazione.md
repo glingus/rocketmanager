@@ -200,13 +200,24 @@ restare privato, in un repo diverso). Un repository privato non permette il down
    | Tipo | Nome | Valore |
    |---|---|---|
    | Variabile | `RELEASES_REPO` | `proprietario/nome` del repository delle release |
-   | Variabile | `UPDATER_PUBKEY` | contenuto del file `.key.pub` (la chiave **pubblica**) |
+   | Variabile | `UPDATER_PUBKEY` | contenuto del file `.key.pub` (la chiave **pubblica**, su una riga) |
+   | Variabile | `SUPABASE_URL` | indirizzo del progetto Supabase, `https://<ref>.supabase.co`, senza `/` finale (Supabase → *Project Settings → API* → *Project URL*) |
+   | Variabile | `SUPABASE_ANON_KEY` | chiave pubblica `anon` (Supabase → *Project Settings → API* → *Project API keys*). È pubblica **per design**: la sicurezza sta nelle policy RLS; la chiave `service_role` **non** va mai messa qui |
+   | Variabile | `PROJECTS_ORG` | nome dell'organizzazione GitHub che ospita i repository dei progetti (quella dove è installata la GitHub App) |
    | Segreto | `TAURI_SIGNING_PRIVATE_KEY` | contenuto del file `.key` (la chiave **privata**) |
    | Segreto | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | la password della chiave |
    | Segreto | `RELEASES_TOKEN` | il token del passo 3 |
 
    Nessun segreto sta nei file del repository; il workflow si ferma subito, con un messaggio chiaro,
    se una di queste voci manca.
+
+   `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `PROJECTS_ORG`, l'endpoint dell'updater (ricavato da
+   `RELEASES_REPO`) e `UPDATER_PUBKEY` vengono **incorporati nell'app in fase di compilazione** come
+   `ROCKETSYNC_SUPABASE_URL`, `ROCKETSYNC_SUPABASE_ANON_KEY`, `ROCKETSYNC_GITHUB_ORG`,
+   `ROCKETSYNC_UPDATER_ENDPOINT` e `ROCKETSYNC_UPDATER_PUBKEY` (la shell le legge con `option_env!`;
+   l'updater usa queste, non `plugins.updater` di `tauri.conf.json`). Senza, l'app pubblicata non
+   potrebbe fare il login né trovare aggiornamenti: per questo lo smoke test della release richiede
+   che `--self-test` riporti `configOk: true`.
 
 ### 8.3 Pubblicare
 

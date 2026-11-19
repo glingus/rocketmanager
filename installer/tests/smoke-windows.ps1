@@ -6,12 +6,16 @@
 
 .PARAMETER Installer
   Percorso dell'installer NSIS (qualsiasi nome: viene copiato come RocketSync-setup.exe).
+.PARAMETER RequireConfigOk
+  Richiede che il self-test riporti configOk = true (build di rilascio con ROCKETSYNC_* impostate).
 .PARAMETER OutDir
   Cartella dove salvare selftest.json e i log (default: %TEMP%\RocketSync-smoke).
 #>
 param(
     [Parameter(Mandatory = $true)][string]$Installer,
-    [string]$OutDir = (Join-Path $env:TEMP 'RocketSync-smoke')
+    [string]$OutDir = (Join-Path $env:TEMP 'RocketSync-smoke'),
+    # Release: l'app deve avere Supabase/GitHub/updater incorporati (configOk = true).
+    [switch]$RequireConfigOk
 )
 
 $ErrorActionPreference = 'Stop'
@@ -136,6 +140,7 @@ foreach ($key in 'ok', 'appVersion', 'gitPath', 'gitVersion', 'webview2Version',
 }
 Check 'selftest: ok = true' ($st.ok -eq $true) ("errori: " + (@($st.errors) -join '; '))
 Check '--self-test esce con 0' ($p.ExitCode -eq 0) "codice $($p.ExitCode)"
+if ($RequireConfigOk) { Check 'selftest: configOk = true (configurazione incorporata nella build di rilascio)' ($st.configOk -eq $true) ("configOk = " + $st.configOk) }
 Check 'selftest: Git incluso trovato' (-not [string]::IsNullOrWhiteSpace([string]$st.gitPath)) ([string]$st.gitPath)
 Check 'selftest: versione app' (-not [string]::IsNullOrWhiteSpace([string]$st.appVersion)) ([string]$st.appVersion)
 
