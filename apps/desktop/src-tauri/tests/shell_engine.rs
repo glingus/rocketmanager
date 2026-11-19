@@ -94,6 +94,8 @@ struct TestPlatform {
     picked: Mutex<Option<PathBuf>>,
     update: Mutex<Option<UpdateInfo>>,
     installed: Mutex<bool>,
+    quit_choice: Mutex<Option<rocket_sync_lib::platform::QuitChoice>>,
+    quit_messages: Mutex<Vec<String>>,
 }
 
 impl Platform for TestPlatform {
@@ -128,6 +130,13 @@ impl Platform for TestPlatform {
     fn set_autostart(&self, on: bool) -> Result<(), String> {
         self.autostart.lock().unwrap().push(on);
         Ok(())
+    }
+    fn confirm_quit(&self, message: &str) -> rocket_sync_lib::platform::QuitChoice {
+        self.quit_messages.lock().unwrap().push(message.to_string());
+        self.quit_choice
+            .lock()
+            .unwrap()
+            .unwrap_or(rocket_sync_lib::platform::QuitChoice::Cancel)
     }
     fn check_update(&self) -> BoxFut<'_, Result<UpdateInfo, String>> {
         Box::pin(async move { Ok(self.update.lock().unwrap().clone().unwrap_or_default()) })
@@ -773,4 +782,153 @@ async fn auth_status_without_configuration_is_signed_out_and_json_matches_the_co
         "no browser is opened without configuration"
     );
     f.shell.auth_sign_out().await.unwrap();
+}
+
+// ---- quitting with unpublished work ----------------------------------------------------------
+
+use rocket_sync_lib::platform::QuitChoice;
+use rocket_sync_lib::shell::{quit_items, quit_message, resolve_remote_base, QuitOutcome};
+
+#[test]
+fn remote_base_override_is_accepted_only_in_development() {
+    assert_eq!(
+        resolve_remote_base(true, Some(" file:///srv ".into())),
+        (Some("file:///srv".into()), None)
+    );
+    let (v, warn) = resolve_remote_base(false, Some("file:///srv".into()));
+    assert_eq!(v, None);
+    assert!(warn.unwrap().contains("ROCKETSYNC_REMOTE_BASE"));
+    assert_eq!(resolve_remote_base(false, None), (None, None));
+    assert_eq!(resolve_remote_base(false, Some("  ".into())), (None, None));
+    assert_eq!(resolve_remote_base(true, Some(String::new())), (None, None));
+}
+
+#[tokio::test]
+async fn quit_decision_logic_picks_the_right_projects_and_text() {
+    let h = Hosting::new();
+    let f = fixture("Anna", Some(&h), AppConfig::default()).await;
+    link(&f).await;
+    assert!(
+        quit_items(&[f.shell.get_project_status("p1").await.unwrap()]).is_empty(),
+        "clean project: no dialog"
+    );
+
+    std::fs::write(folder(&f).join("Note.txt"), "ciao").unwrap();
+    std::fs::write(folder(&f).join("Rotto.ork"), &SIMPLE[..SIMPLE.len() / 2]).unwrap();
+    wait_valid(&f, 2).await;
+    let st = f.shell.get_project_status("p1").await.unwrap();
+    let items = quit_items(&[st]);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].name, "progetto");
+    assert_eq!(
+        items[0].paths,
+        vec!["Note.txt".to_string()],
+        "the truncated .ork is not publishable"
+    );
+    assert!(!items[0].has_pending && !items[0].in_conflict);
+    assert_eq!(
+        quit_message(&items),
+        "Ci sono modifiche non pubblicate in progetto. Vuoi pubblicarle prima di uscire?"
+    );
+    let two = vec![
+        items[0].clone(),
+        rocket_sync_lib::shell::QuitItem {
+            name: "Altro".into(),
+            ..items[0].clone()
+        },
+    ];
+    assert!(quit_message(&two).contains("in progetto, Altro."));
+    assert_eq!(
+        QuitChoice::from_label(rocket_sync_lib::platform::QUIT_PUBLISH),
+        QuitChoice::Publish
+    );
+    assert_eq!(
+        QuitChoice::from_label(rocket_sync_lib::platform::QUIT_EXIT),
+        QuitChoice::ExitWithoutPublishing
+    );
+    assert_eq!(
+        QuitChoice::from_label(rocket_sync_lib::platform::QUIT_CANCEL),
+        QuitChoice::Cancel
+    );
+    assert_eq!(
+        QuitChoice::from_label("chiusa con la X"),
+        QuitChoice::Cancel
+    );
+}
+
+#[tokio::test]
+async fn quitting_asks_and_publishes_only_when_told_to() {
+    let h = Hosting::new();
+    let f = fixture("Anna", Some(&h), AppConfig::default()).await;
+    link(&f).await;
+    // nothing to lose: no dialog at all
+    assert_eq!(f.shell.prepare_quit().await, QuitOutcome::Proceed);
+    assert!(f.platform.quit_messages.lock().unwrap().is_empty());
+
+    std::fs::write(folder(&f).join("Note.txt"), "ciao").unwrap();
+    wait_valid(&f, 1).await;
+    // Annulla: stay open, nothing published
+    *f.platform.quit_choice.lock().unwrap() = Some(QuitChoice::Cancel);
+    assert_eq!(f.shell.prepare_quit().await, QuitOutcome::Cancelled);
+    assert_eq!(
+        f.platform.quit_messages.lock().unwrap()[0],
+        "Ci sono modifiche non pubblicate in progetto. Vuoi pubblicarle prima di uscire?"
+    );
+    assert_eq!(
+        f.shell
+            .get_project_status("p1")
+            .await
+            .unwrap()
+            .changed_files
+            .len(),
+        1
+    );
+    // Esci senza pubblicare: quit, the change stays on the PC
+    *f.platform.quit_choice.lock().unwrap() = Some(QuitChoice::ExitWithoutPublishing);
+    assert_eq!(f.shell.prepare_quit().await, QuitOutcome::Proceed);
+    assert_eq!(
+        f.shell
+            .get_project_status("p1")
+            .await
+            .unwrap()
+            .changed_files
+            .len(),
+        1
+    );
+    assert!(git(
+        &h.root.path().join("base/team/razzo.git"),
+        &["tag", "--list"]
+    )
+    .is_empty());
+    // Pubblica ed esci: published, then quit
+    *f.platform.quit_choice.lock().unwrap() = Some(QuitChoice::Publish);
+    assert_eq!(f.shell.prepare_quit().await, QuitOutcome::Proceed);
+    let st = f.shell.get_project_status("p1").await.unwrap();
+    assert_eq!(st.state, SyncState::Synced);
+    assert_eq!(st.head_version, Some(1));
+    assert_eq!(
+        git(
+            &h.root.path().join("base/team/razzo.git"),
+            &["tag", "--list"]
+        ),
+        "v1"
+    );
+}
+
+#[tokio::test]
+async fn quit_publish_failures_keep_the_app_open() {
+    let h = Hosting::new();
+    let f = fixture("Anna", Some(&h), AppConfig::default()).await;
+    link(&f).await;
+    std::fs::write(folder(&f).join("Note.txt"), "ciao").unwrap();
+    wait_valid(&f, 1).await;
+    f.shell.engine().unwrap().set_identity(None); // publishing now fails with authRequired
+    *f.platform.quit_choice.lock().unwrap() = Some(QuitChoice::Publish);
+    match f.shell.prepare_quit().await {
+        QuitOutcome::PublishFailed(errs) => {
+            assert_eq!(errs.len(), 1);
+            assert!(errs[0].starts_with("progetto: "), "{errs:?}");
+        }
+        other => panic!("{other:?}"),
+    }
 }

@@ -19,6 +19,30 @@ pub struct UpdateInfo {
     pub notes: Option<String>,
 }
 
+/// Button labels of the "quit with unpublished changes" dialog.
+pub const QUIT_PUBLISH: &str = "Pubblica ed esci";
+pub const QUIT_EXIT: &str = "Esci senza pubblicare (restano sul PC)";
+pub const QUIT_CANCEL: &str = "Annulla";
+
+/// The user's answer to the quit dialog.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuitChoice {
+    Publish,
+    ExitWithoutPublishing,
+    Cancel,
+}
+
+impl QuitChoice {
+    /// From the label of the pressed button; anything unknown (closing the window) cancels.
+    pub fn from_label(label: &str) -> Self {
+        match label {
+            QUIT_PUBLISH => QuitChoice::Publish,
+            QUIT_EXIT => QuitChoice::ExitWithoutPublishing,
+            _ => QuitChoice::Cancel,
+        }
+    }
+}
+
 /// Operating system and desktop services.
 pub trait Platform: Send + Sync {
     /// Opens a URL in the system browser.
@@ -39,6 +63,8 @@ pub trait Platform: Send + Sync {
     /// Blocking folder picker; `None` if the user cancels.
     fn pick_folder(&self, default: Option<&Path>) -> Option<PathBuf>;
     fn set_autostart(&self, enabled: bool) -> Result<(), String>;
+    /// Blocking native dialog (Italian) asking what to do with unpublished changes when quitting.
+    fn confirm_quit(&self, message: &str) -> QuitChoice;
     fn check_update(&self) -> BoxFut<'_, Result<UpdateInfo, String>>;
     /// Downloads and installs the update, then restarts the application.
     fn install_update(&self) -> BoxFut<'_, Result<(), String>>;

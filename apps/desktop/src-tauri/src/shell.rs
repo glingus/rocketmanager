@@ -35,6 +35,89 @@ pub(crate) fn app_error(code: ErrorCode, message: impl Into<String>) -> AppError
     }
 }
 
+/// How to treat `ROCKETSYNC_REMOTE_BASE`: only debug builds (or the `dev-remote` feature) accept it.
+/// Returns the base to use and a warning to log when it was ignored.
+pub fn resolve_remote_base(
+    allowed: bool,
+    value: Option<String>,
+) -> (Option<String>, Option<String>) {
+    match value
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+    {
+        None => (None, None),
+        Some(v) if allowed => (Some(v), None),
+        Some(_) => (
+            None,
+            Some(
+                "ROCKETSYNC_REMOTE_BASE ignorata: è ammessa solo nelle build di sviluppo"
+                    .to_string(),
+            ),
+        ),
+    }
+}
+
+/// A project with something that would stay unpublished if the application quit now.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuitItem {
+    pub project_id: String,
+    /// Name shown to the user: the project folder.
+    pub name: String,
+    /// Stable and valid files that `publish` can include.
+    pub paths: Vec<String>,
+    pub has_pending: bool,
+    /// A conflict is open: nothing can be published, the work is already safe on the server branch.
+    pub in_conflict: bool,
+}
+
+/// Projects with unpublished changes or pending versions.
+pub fn quit_items(statuses: &[ProjectStatus]) -> Vec<QuitItem> {
+    statuses
+        .iter()
+        .filter(|s| !s.changed_files.is_empty() || !s.pending_versions.is_empty())
+        .map(|s| QuitItem {
+            project_id: s.project_id.clone(),
+            name: s
+                .folder
+                .as_deref()
+                .and_then(|f| Path::new(f).file_name())
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| s.project_id.clone()),
+            paths: s
+                .changed_files
+                .iter()
+                .filter(|f| {
+                    f.stable
+                        && (f.change == rs_core::FileChangeKind::Deleted || f.valid == Some(true))
+                })
+                .map(|f| f.path.clone())
+                .collect(),
+            has_pending: !s.pending_versions.is_empty(),
+            in_conflict: s.state == SyncState::Conflict,
+        })
+        .collect()
+}
+
+/// Text of the quit dialog.
+pub fn quit_message(items: &[QuitItem]) -> String {
+    let names: Vec<&str> = items.iter().map(|i| i.name.as_str()).collect();
+    format!(
+        "Ci sono modifiche non pubblicate in {}. Vuoi pubblicarle prima di uscire?",
+        names.join(", ")
+    )
+}
+
+/// What the quit procedure decided.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuitOutcome {
+    /// Quit now.
+    Proceed,
+    /// The user cancelled: stay open.
+    Cancelled,
+    /// Publishing failed for these projects (messages in Italian): stay open.
+    PublishFailed(Vec<String>),
+}
+
 /// `get_app_info` result.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -296,6 +379,51 @@ impl Shell {
             .engine()?
             .answer_stale_save(project_id, path.to_string(), reopened)
             .await?)
+    }
+
+    /// Asks what to do with unpublished work and, if requested, publishes it (tray "Esci").
+    pub async fn prepare_quit(&self) -> QuitOutcome {
+        let Ok(engine) = self.engine() else {
+            return QuitOutcome::Proceed;
+        };
+        let mut statuses = Vec::new();
+        for p in engine.list_projects().unwrap_or_default() {
+            if let Ok(s) = engine.status(&p.project_id).await {
+                statuses.push(s);
+            }
+        }
+        let items = quit_items(&statuses);
+        if items.is_empty() {
+            return QuitOutcome::Proceed;
+        }
+        let message = quit_message(&items);
+        let platform = self.platform.clone();
+        let choice = tokio::task::spawn_blocking(move || platform.confirm_quit(&message))
+            .await
+            .unwrap_or(crate::platform::QuitChoice::Cancel);
+        match choice {
+            crate::platform::QuitChoice::Cancel => QuitOutcome::Cancelled,
+            crate::platform::QuitChoice::ExitWithoutPublishing => QuitOutcome::Proceed,
+            crate::platform::QuitChoice::Publish => {
+                let mut failures = Vec::new();
+                for item in items {
+                    if item.in_conflict || (item.paths.is_empty() && !item.has_pending) {
+                        continue; // nothing that can be published; the files stay on the PC
+                    }
+                    if let Err(e) = self
+                        .publish(&item.project_id, None, None, Some(item.paths.clone()))
+                        .await
+                    {
+                        failures.push(format!("{}: {}", item.name, e.message));
+                    }
+                }
+                if failures.is_empty() {
+                    QuitOutcome::Proceed
+                } else {
+                    QuitOutcome::PublishFailed(failures)
+                }
+            }
+        }
     }
 
     pub fn notify_remote_changed(&self, project_id: &str) -> CmdResult<()> {

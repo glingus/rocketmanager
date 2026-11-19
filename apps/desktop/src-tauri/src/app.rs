@@ -3,10 +3,12 @@
 use crate::commands::{self, AppState};
 use crate::config::AppConfig;
 use crate::events::{self, EventSink};
-use crate::platform::{BoxFut, Platform, UpdateInfo};
+use crate::platform::{
+    BoxFut, Platform, QuitChoice, UpdateInfo, QUIT_CANCEL, QUIT_EXIT, QUIT_PUBLISH,
+};
 use crate::secrets::{system_store, SecretStore};
 use crate::settings::AppSettings;
-use crate::shell::{app_error, Shell, ShellParts};
+use crate::shell::{app_error, resolve_remote_base, QuitOutcome, Shell, ShellParts};
 use crate::{auth::AuthService, enrich::ShellInspector, logging, paths};
 use rs_core::{Engine, EngineConfig, ErrorCode};
 use std::path::{Path, PathBuf};
@@ -17,7 +19,9 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 use tauri_plugin_autostart::ManagerExt as _;
-use tauri_plugin_dialog::DialogExt as _;
+use tauri_plugin_dialog::{
+    DialogExt as _, MessageDialogButtons, MessageDialogKind, MessageDialogResult,
+};
 use tauri_plugin_notification::NotificationExt as _;
 use tauri_plugin_opener::OpenerExt as _;
 use tauri_plugin_updater::UpdaterExt as _;
@@ -89,6 +93,26 @@ impl Platform for TauriPlatform {
         let m = self.app.autolaunch();
         if enabled { m.enable() } else { m.disable() }.map_err(|e| e.to_string())
     }
+    fn confirm_quit(&self, message: &str) -> QuitChoice {
+        let r = self
+            .app
+            .dialog()
+            .message(message)
+            .title("Rocket Sync")
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::YesNoCancelCustom(
+                QUIT_PUBLISH.to_string(),
+                QUIT_EXIT.to_string(),
+                QUIT_CANCEL.to_string(),
+            ))
+            .blocking_show_with_result();
+        match r {
+            MessageDialogResult::Custom(label) => QuitChoice::from_label(&label),
+            MessageDialogResult::Yes => QuitChoice::Publish,
+            MessageDialogResult::No => QuitChoice::ExitWithoutPublishing,
+            _ => QuitChoice::Cancel,
+        }
+    }
     fn check_update(&self) -> BoxFut<'_, Result<UpdateInfo, String>> {
         Box::pin(async move {
             let updater = self.updater()?;
@@ -148,6 +172,19 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
                     if let Some(shell) = app.state::<AppState>().try_shell() {
+                        match shell.prepare_quit().await {
+                            QuitOutcome::Cancelled => return,
+                            QuitOutcome::PublishFailed(errors) => {
+                                // Stay open: the user must not lose sight of what was not published.
+                                let _ = shell.platform.notify(
+                                    "Pubblicazione non riuscita",
+                                    &format!("{} Rocket Sync resta aperto.", errors.join(" ")),
+                                );
+                                show_main_window(&app);
+                                return;
+                            }
+                            QuitOutcome::Proceed => {}
+                        }
                         if let Ok(e) = shell.engine() {
                             e.shutdown().await;
                         }
@@ -248,6 +285,14 @@ async fn build_shell(
             Err(e.to_app_error())
         }
     };
+
+    let (remote_base, remote_warning) = resolve_remote_base(
+        cfg!(debug_assertions) || cfg!(feature = "dev-remote"),
+        std::env::var("ROCKETSYNC_REMOTE_BASE").ok(),
+    );
+    if let Some(w) = remote_warning {
+        tracing::warn!("{w}");
+    }
 
     Arc::new(Shell::new(ShellParts {
         engine,

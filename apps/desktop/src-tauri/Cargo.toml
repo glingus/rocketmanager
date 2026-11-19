@@ -8,6 +8,10 @@ publish = false
 description = "Rocket Sync - sincronizzazione dei file OpenRocket per il team"
 default-run = "rocket-sync"
 
+[features]
+# Accept ROCKETSYNC_REMOTE_BASE (repositories on a local path instead of GitHub) in release builds too.
+dev-remote = []
+
 [lib]
 name = "rocket_sync_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
