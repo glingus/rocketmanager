@@ -626,7 +626,14 @@ pub async fn user_with_background(name: &str, remote: &Remote, fetch_ms: u64) ->
         name: name.into(),
         email: format!("1+{}@users.noreply.github.com", name.to_lowercase()),
     }));
-    let u = User { name: name.into(), engine, folder, data_dir, detector, _tmp: tmp };
+    let u = User {
+        name: name.into(),
+        engine,
+        folder,
+        data_dir,
+        detector,
+        _tmp: tmp,
+    };
     u.link(remote).await.unwrap();
     u
 }

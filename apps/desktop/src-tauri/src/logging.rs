@@ -41,7 +41,9 @@ impl Write for RedactingWriter {
 impl<'a> MakeWriter<'a> for RedactingLog {
     type Writer = RedactingWriter;
     fn make_writer(&'a self) -> Self::Writer {
-        RedactingWriter { file: self.file.clone() }
+        RedactingWriter {
+            file: self.file.clone(),
+        }
     }
 }
 
@@ -50,11 +52,19 @@ pub fn open_log(data_dir: &Path) -> std::io::Result<(RedactingLog, PathBuf)> {
     let dir = data_dir.join("logs");
     std::fs::create_dir_all(&dir)?;
     let path = dir.join(LOG_FILE);
-    if std::fs::metadata(&path).map(|m| m.len() > ROTATE_AT).unwrap_or(false) {
+    if std::fs::metadata(&path)
+        .map(|m| m.len() > ROTATE_AT)
+        .unwrap_or(false)
+    {
         let _ = std::fs::rename(&path, dir.join("rocketsync.old.log"));
     }
     let file = OpenOptions::new().create(true).append(true).open(&path)?;
-    Ok((RedactingLog { file: Arc::new(Mutex::new(file)) }, path))
+    Ok((
+        RedactingLog {
+            file: Arc::new(Mutex::new(file)),
+        },
+        path,
+    ))
 }
 
 /// Installs the global subscriber (once). Returns the log path.
@@ -71,7 +81,9 @@ pub fn init(data_dir: &Path) -> Option<PathBuf> {
 /// Last `max_bytes` of a text file (whole lines), redacted again for safety.
 pub fn tail(path: &Path, max_bytes: u64) -> String {
     use std::io::{Read, Seek, SeekFrom};
-    let Ok(mut f) = File::open(path) else { return String::new() };
+    let Ok(mut f) = File::open(path) else {
+        return String::new();
+    };
     let len = f.metadata().map(|m| m.len()).unwrap_or(0);
     if len > max_bytes {
         let _ = f.seek(SeekFrom::Start(len - max_bytes));
@@ -96,12 +108,18 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let (log, path) = open_log(d.path()).unwrap();
         let mut w = log.make_writer();
-        w.write_all(b"fetch https://x-access-token:ghp_abcdefghijklmnopqrstuvwxyz0123@github.com/o/r.git\n").unwrap();
+        w.write_all(
+            b"fetch https://x-access-token:ghp_abcdefghijklmnopqrstuvwxyz0123@github.com/o/r.git\n",
+        )
+        .unwrap();
         w.write_all(b"Authorization: Bearer topsecret\n").unwrap();
         w.write_all(b"normal line\n").unwrap();
         w.flush().unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
-        assert!(!text.contains("ghp_") && !text.contains("topsecret"), "{text}");
+        assert!(
+            !text.contains("ghp_") && !text.contains("topsecret"),
+            "{text}"
+        );
         assert!(text.contains("normal line"));
         assert!(tail(&path, 10).len() <= 20);
     }

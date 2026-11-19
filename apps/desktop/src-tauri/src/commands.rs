@@ -6,8 +6,8 @@ use crate::platform::UpdateInfo;
 use crate::settings::AppSettings;
 use crate::shell::{AppInfo, CmdResult, Shell};
 use rs_core::{
-    AppError, Comparison, Conflict, ConflictSide, ErrorCode, FileResolution, FolderCheck, LocalProject, ProjectStatus,
-    PublishPolicy, Snapshot, VersionInfo,
+    AppError, Comparison, Conflict, ConflictSide, ErrorCode, FileResolution, FolderCheck,
+    LocalProject, ProjectStatus, PublishPolicy, Snapshot, VersionInfo,
 };
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -40,10 +40,13 @@ impl AppState {
     /// Waits (at most a minute) for the services to be ready.
     pub async fn shell(&self) -> CmdResult<Arc<Shell>> {
         let mut rx = self.slot.subscribe();
-        let ready = tokio::time::timeout(std::time::Duration::from_secs(60), rx.wait_for(|s| s.is_some()))
-            .await
-            .ok()
-            .and_then(|r| r.ok().and_then(|g| g.clone()));
+        let ready = tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            rx.wait_for(|s| s.is_some()),
+        )
+        .await
+        .ok()
+        .and_then(|r| r.ok().and_then(|g| g.clone()));
         ready.ok_or_else(not_ready)
     }
 }
@@ -126,7 +129,12 @@ pub async fn pick_folder(state: St<'_>, default_path: Option<String>) -> CmdResu
 }
 
 #[tauri::command]
-pub async fn link_project(state: St<'_>, project_id: String, repo_full_name: String, folder: String) -> CmdResult<ProjectStatus> {
+pub async fn link_project(
+    state: St<'_>,
+    project_id: String,
+    repo_full_name: String,
+    folder: String,
+) -> CmdResult<ProjectStatus> {
     let s = state.shell().await?;
     s.link_project(&project_id, &repo_full_name, &folder).await
 }
@@ -144,7 +152,13 @@ pub async fn get_project_status(state: St<'_>, project_id: String) -> CmdResult<
 }
 
 #[tauri::command]
-pub async fn publish(state: St<'_>, project_id: String, title: Option<String>, description: Option<String>, paths: Option<Vec<String>>) -> CmdResult<ProjectStatus> {
+pub async fn publish(
+    state: St<'_>,
+    project_id: String,
+    title: Option<String>,
+    description: Option<String>,
+    paths: Option<Vec<String>>,
+) -> CmdResult<ProjectStatus> {
     let s = state.shell().await?;
     s.publish(&project_id, title, description, paths).await
 }
@@ -156,19 +170,32 @@ pub async fn sync_now(state: St<'_>, project_id: String) -> CmdResult<ProjectSta
 }
 
 #[tauri::command]
-pub async fn update_now(state: St<'_>, project_id: String, force: Option<bool>) -> CmdResult<ProjectStatus> {
+pub async fn update_now(
+    state: St<'_>,
+    project_id: String,
+    force: Option<bool>,
+) -> CmdResult<ProjectStatus> {
     let s = state.shell().await?;
     s.update_now(&project_id, force.unwrap_or(false)).await
 }
 
 #[tauri::command]
-pub async fn discard_changes(state: St<'_>, project_id: String, paths: Vec<String>) -> CmdResult<ProjectStatus> {
+pub async fn discard_changes(
+    state: St<'_>,
+    project_id: String,
+    paths: Vec<String>,
+) -> CmdResult<ProjectStatus> {
     let s = state.shell().await?;
     s.discard_changes(&project_id, paths).await
 }
 
 #[tauri::command]
-pub async fn answer_stale_save(state: St<'_>, project_id: String, path: String, reopened: bool) -> CmdResult<ProjectStatus> {
+pub async fn answer_stale_save(
+    state: St<'_>,
+    project_id: String,
+    path: String,
+    reopened: bool,
+) -> CmdResult<ProjectStatus> {
     let s = state.shell().await?;
     s.answer_stale_save(&project_id, &path, reopened).await
 }
@@ -186,13 +213,22 @@ pub async fn get_publish_policy(state: St<'_>, project_id: String) -> CmdResult<
 }
 
 #[tauri::command]
-pub async fn set_publish_policy(state: St<'_>, project_id: String, policy: PublishPolicy) -> CmdResult<()> {
+pub async fn set_publish_policy(
+    state: St<'_>,
+    project_id: String,
+    policy: PublishPolicy,
+) -> CmdResult<()> {
     let s = state.shell().await?;
     s.set_publish_policy(&project_id, policy)
 }
 
 #[tauri::command]
-pub async fn list_versions(state: St<'_>, project_id: String, limit: Option<usize>, before_sha: Option<String>) -> CmdResult<Vec<VersionInfo>> {
+pub async fn list_versions(
+    state: St<'_>,
+    project_id: String,
+    limit: Option<usize>,
+    before_sha: Option<String>,
+) -> CmdResult<Vec<VersionInfo>> {
     let s = state.shell().await?;
     s.list_versions(&project_id, limit, before_sha).await
 }
@@ -204,51 +240,94 @@ pub async fn get_version(state: St<'_>, project_id: String, sha: String) -> CmdR
 }
 
 #[tauri::command]
-pub async fn compare_versions(state: St<'_>, project_id: String, from_sha: String, to_sha: String) -> CmdResult<Comparison> {
+pub async fn compare_versions(
+    state: St<'_>,
+    project_id: String,
+    from_sha: String,
+    to_sha: String,
+) -> CmdResult<Comparison> {
     let s = state.shell().await?;
     s.compare_versions(&project_id, &from_sha, &to_sha).await
 }
 
 #[tauri::command]
-pub async fn export_version(state: St<'_>, project_id: String, sha: String, paths: Option<Vec<String>>, dest_dir: String) -> CmdResult<Vec<String>> {
+pub async fn export_version(
+    state: St<'_>,
+    project_id: String,
+    sha: String,
+    paths: Option<Vec<String>>,
+    dest_dir: String,
+) -> CmdResult<Vec<String>> {
     let s = state.shell().await?;
     s.export_version(&project_id, &sha, paths, &dest_dir).await
 }
 
 #[tauri::command]
-pub async fn open_version_copy(state: St<'_>, project_id: String, sha: String, path: String) -> CmdResult<()> {
+pub async fn open_version_copy(
+    state: St<'_>,
+    project_id: String,
+    sha: String,
+    path: String,
+) -> CmdResult<()> {
     let s = state.shell().await?;
     s.open_version_copy(&project_id, &sha, &path).await
 }
 
 #[tauri::command]
-pub async fn restore_version(state: St<'_>, project_id: String, sha: String, paths: Option<Vec<String>>) -> CmdResult<ProjectStatus> {
+pub async fn restore_version(
+    state: St<'_>,
+    project_id: String,
+    sha: String,
+    paths: Option<Vec<String>>,
+) -> CmdResult<ProjectStatus> {
     let s = state.shell().await?;
     s.restore_version(&project_id, &sha, paths).await
 }
 
 #[tauri::command]
-pub async fn list_conflicts(state: St<'_>, project_id: String, include_resolved: Option<bool>) -> CmdResult<Vec<Conflict>> {
+pub async fn list_conflicts(
+    state: St<'_>,
+    project_id: String,
+    include_resolved: Option<bool>,
+) -> CmdResult<Vec<Conflict>> {
     let s = state.shell().await?;
-    s.list_conflicts(&project_id, include_resolved.unwrap_or(false)).await
+    s.list_conflicts(&project_id, include_resolved.unwrap_or(false))
+        .await
 }
 
 #[tauri::command]
-pub async fn get_conflict(state: St<'_>, project_id: String, conflict_id: String) -> CmdResult<Conflict> {
+pub async fn get_conflict(
+    state: St<'_>,
+    project_id: String,
+    conflict_id: String,
+) -> CmdResult<Conflict> {
     let s = state.shell().await?;
     s.get_conflict(&project_id, &conflict_id).await
 }
 
 #[tauri::command]
-pub async fn open_conflict_copy(state: St<'_>, project_id: String, conflict_id: String, path: String, side: ConflictSide) -> CmdResult<()> {
+pub async fn open_conflict_copy(
+    state: St<'_>,
+    project_id: String,
+    conflict_id: String,
+    path: String,
+    side: ConflictSide,
+) -> CmdResult<()> {
     let s = state.shell().await?;
-    s.open_conflict_copy(&project_id, &conflict_id, &path, side).await
+    s.open_conflict_copy(&project_id, &conflict_id, &path, side)
+        .await
 }
 
 #[tauri::command]
-pub async fn resolve_conflict(state: St<'_>, project_id: String, conflict_id: String, resolutions: Vec<FileResolution>) -> CmdResult<ProjectStatus> {
+pub async fn resolve_conflict(
+    state: St<'_>,
+    project_id: String,
+    conflict_id: String,
+    resolutions: Vec<FileResolution>,
+) -> CmdResult<ProjectStatus> {
     let s = state.shell().await?;
-    s.resolve_conflict(&project_id, &conflict_id, resolutions).await
+    s.resolve_conflict(&project_id, &conflict_id, resolutions)
+        .await
 }
 
 #[tauri::command]
@@ -258,9 +337,15 @@ pub async fn list_snapshots(state: St<'_>, project_id: String) -> CmdResult<Vec<
 }
 
 #[tauri::command]
-pub async fn export_snapshot(state: St<'_>, project_id: String, snapshot_id: String, dest_dir: String) -> CmdResult<Vec<String>> {
+pub async fn export_snapshot(
+    state: St<'_>,
+    project_id: String,
+    snapshot_id: String,
+    dest_dir: String,
+) -> CmdResult<Vec<String>> {
     let s = state.shell().await?;
-    s.export_snapshot(&project_id, &snapshot_id, &dest_dir).await
+    s.export_snapshot(&project_id, &snapshot_id, &dest_dir)
+        .await
 }
 
 #[tauri::command]
@@ -316,4 +401,3 @@ pub async fn notify_desktop(state: St<'_>, title: String, body: String) -> CmdRe
     let s = state.shell().await?;
     s.notify_desktop(&title, &body)
 }
-

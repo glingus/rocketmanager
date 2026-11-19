@@ -13,8 +13,9 @@ use crate::platform::{Platform, UpdateInfo};
 use crate::secrets::SecretStore;
 use crate::settings::AppSettings;
 use rs_core::{
-    AppError, Comparison, Conflict, ConflictSide, Engine, ErrorCode, FileResolution, FolderCheck, LinkRequest,
-    LocalProject, ProjectStatus, PublishPolicy, PublishRequest, Snapshot, SyncState, VersionInfo,
+    AppError, Comparison, Conflict, ConflictSide, Engine, ErrorCode, FileResolution, FolderCheck,
+    LinkRequest, LocalProject, ProjectStatus, PublishPolicy, PublishRequest, Snapshot, SyncState,
+    VersionInfo,
 };
 use rs_store::Store;
 use serde::Serialize;
@@ -78,7 +79,9 @@ pub struct Shell {
 fn valid_store_key(key: &str) -> bool {
     !key.is_empty()
         && key.len() <= 200
-        && key.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | ':'))
+        && key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | ':'))
 }
 
 impl Shell {
@@ -202,19 +205,30 @@ impl Shell {
                 .map(|p| p.to_string_lossy().into_owned())
         })
         .await
-        .map_err(|_| app_error(ErrorCode::Internal, "La finestra di selezione si è interrotta."))
+        .map_err(|_| {
+            app_error(
+                ErrorCode::Internal,
+                "La finestra di selezione si è interrotta.",
+            )
+        })
     }
 
-    pub async fn link_project(&self, project_id: &str, repo_full_name: &str, folder: &str) -> CmdResult<ProjectStatus> {
+    pub async fn link_project(
+        &self,
+        project_id: &str,
+        repo_full_name: &str,
+        folder: &str,
+    ) -> CmdResult<ProjectStatus> {
         let engine = self.engine()?;
         self.fresh_token().await;
         Ok(engine
             .link_project(LinkRequest {
                 project_id: project_id.to_string(),
                 repo_full_name: repo_full_name.to_string(),
-                remote_url: self.remote_base.as_deref().map(|b| {
-                    format!("{}/{}.git", b.trim_end_matches('/'), repo_full_name)
-                }),
+                remote_url: self
+                    .remote_base
+                    .as_deref()
+                    .map(|b| format!("{}/{}.git", b.trim_end_matches('/'), repo_full_name)),
                 folder: folder.to_string(),
                 allow_synced_drive: false,
             })
@@ -241,7 +255,14 @@ impl Shell {
         let engine = self.engine()?;
         self.fresh_token().await;
         Ok(engine
-            .publish(project_id, PublishRequest { title, description, paths })
+            .publish(
+                project_id,
+                PublishRequest {
+                    title,
+                    description,
+                    paths,
+                },
+            )
             .await?)
     }
 
@@ -257,11 +278,20 @@ impl Shell {
         Ok(engine.update_now(project_id, force).await?)
     }
 
-    pub async fn discard_changes(&self, project_id: &str, paths: Vec<String>) -> CmdResult<ProjectStatus> {
+    pub async fn discard_changes(
+        &self,
+        project_id: &str,
+        paths: Vec<String>,
+    ) -> CmdResult<ProjectStatus> {
         Ok(self.engine()?.discard_changes(project_id, paths).await?)
     }
 
-    pub async fn answer_stale_save(&self, project_id: &str, path: &str, reopened: bool) -> CmdResult<ProjectStatus> {
+    pub async fn answer_stale_save(
+        &self,
+        project_id: &str,
+        path: &str,
+        reopened: bool,
+    ) -> CmdResult<ProjectStatus> {
         Ok(self
             .engine()?
             .answer_stale_save(project_id, path.to_string(), reopened)
@@ -283,7 +313,9 @@ impl Shell {
     /// Syncs every project (tray menu). Errors of single projects are logged, not returned.
     pub async fn sync_all(&self) -> usize {
         let Ok(engine) = self.engine() else { return 0 };
-        let Ok(projects) = engine.list_projects() else { return 0 };
+        let Ok(projects) = engine.list_projects() else {
+            return 0;
+        };
         self.fresh_token().await;
         let mut ok = 0;
         for p in projects {
@@ -297,7 +329,9 @@ impl Shell {
 
     /// Waits until no project is publishing or updating (before installing an update).
     pub async fn wait_idle(&self, timeout: Duration) -> bool {
-        let Ok(engine) = self.engine() else { return true };
+        let Ok(engine) = self.engine() else {
+            return true;
+        };
         let end = std::time::Instant::now() + timeout;
         loop {
             let busy = match engine.list_projects() {
@@ -332,15 +366,26 @@ impl Shell {
         limit: Option<usize>,
         before_sha: Option<String>,
     ) -> CmdResult<Vec<VersionInfo>> {
-        Ok(self.engine()?.list_versions(project_id, limit, before_sha).await?)
+        Ok(self
+            .engine()?
+            .list_versions(project_id, limit, before_sha)
+            .await?)
     }
 
     pub async fn get_version(&self, project_id: &str, sha: &str) -> CmdResult<VersionInfo> {
-        Ok(self.engine()?.get_version(project_id, sha.to_string()).await?)
+        Ok(self
+            .engine()?
+            .get_version(project_id, sha.to_string())
+            .await?)
     }
 
     /// Comparison with the semantic diff of `.ork` files and the text diff of text files.
-    pub async fn compare_versions(&self, project_id: &str, from_sha: &str, to_sha: &str) -> CmdResult<Comparison> {
+    pub async fn compare_versions(
+        &self,
+        project_id: &str,
+        from_sha: &str,
+        to_sha: &str,
+    ) -> CmdResult<Comparison> {
         let mut c = self
             .engine()?
             .compare_versions(project_id, from_sha.to_string(), to_sha.to_string())
@@ -367,7 +412,12 @@ impl Shell {
             .await?)
     }
 
-    pub async fn open_version_copy(&self, project_id: &str, sha: &str, path: &str) -> CmdResult<()> {
+    pub async fn open_version_copy(
+        &self,
+        project_id: &str,
+        sha: &str,
+        path: &str,
+    ) -> CmdResult<()> {
         let copy = self
             .engine()?
             .export_version_copy(project_id, sha.to_string(), path.to_string())
@@ -375,10 +425,17 @@ impl Shell {
         self.launch(&copy)
     }
 
-    pub async fn restore_version(&self, project_id: &str, sha: &str, paths: Option<Vec<String>>) -> CmdResult<ProjectStatus> {
+    pub async fn restore_version(
+        &self,
+        project_id: &str,
+        sha: &str,
+        paths: Option<Vec<String>>,
+    ) -> CmdResult<ProjectStatus> {
         let engine = self.engine()?;
         self.fresh_token().await;
-        Ok(engine.restore_version(project_id, sha.to_string(), paths).await?)
+        Ok(engine
+            .restore_version(project_id, sha.to_string(), paths)
+            .await?)
     }
 
     // ---- conflicts and safety copies ----------------------------------------------------
@@ -386,9 +443,17 @@ impl Shell {
     async fn enriched(&self, project_id: &str, mut c: Conflict) -> CmdResult<Conflict> {
         // Read the three sides asynchronously first, then fill the diff on a blocking thread.
         let engine = self.engine()?.clone();
-        let mut sides: std::collections::HashMap<(String, u8), Vec<u8>> = std::collections::HashMap::new();
-        for f in c.files.iter().filter(|f| f.path.to_ascii_lowercase().ends_with(".ork")) {
-            for (i, side) in [ConflictSide::Base, ConflictSide::Ours, ConflictSide::Theirs].into_iter().enumerate() {
+        let mut sides: std::collections::HashMap<(String, u8), Vec<u8>> =
+            std::collections::HashMap::new();
+        for f in c
+            .files
+            .iter()
+            .filter(|f| f.path.to_ascii_lowercase().ends_with(".ork"))
+        {
+            for (i, side) in [ConflictSide::Base, ConflictSide::Ours, ConflictSide::Theirs]
+                .into_iter()
+                .enumerate()
+            {
                 if let Ok(Some(b)) = engine
                     .read_conflict_side(project_id, c.id.clone(), f.path.clone(), side)
                     .await
@@ -412,8 +477,15 @@ impl Shell {
         .map_err(|_| app_error(ErrorCode::Internal, "Confronto interrotto."))
     }
 
-    pub async fn list_conflicts(&self, project_id: &str, include_resolved: bool) -> CmdResult<Vec<Conflict>> {
-        let list = self.engine()?.list_conflicts(project_id, include_resolved).await?;
+    pub async fn list_conflicts(
+        &self,
+        project_id: &str,
+        include_resolved: bool,
+    ) -> CmdResult<Vec<Conflict>> {
+        let list = self
+            .engine()?
+            .list_conflicts(project_id, include_resolved)
+            .await?;
         let mut out = Vec::new();
         for c in list {
             out.push(self.enriched(project_id, c).await?);
@@ -422,7 +494,10 @@ impl Shell {
     }
 
     pub async fn get_conflict(&self, project_id: &str, conflict_id: &str) -> CmdResult<Conflict> {
-        let c = self.engine()?.get_conflict(project_id, conflict_id.to_string()).await?;
+        let c = self
+            .engine()?
+            .get_conflict(project_id, conflict_id.to_string())
+            .await?;
         self.enriched(project_id, c).await
     }
 
@@ -434,7 +509,10 @@ impl Shell {
         side: ConflictSide,
     ) -> CmdResult<()> {
         if side == ConflictSide::Ours {
-            return Err(app_error(ErrorCode::InvalidPath, "La tua versione è già nella cartella del progetto."));
+            return Err(app_error(
+                ErrorCode::InvalidPath,
+                "La tua versione è già nella cartella del progetto.",
+            ));
         }
         let copy = self
             .engine()?
@@ -460,7 +538,12 @@ impl Shell {
         Ok(self.engine()?.list_snapshots(project_id).await?)
     }
 
-    pub async fn export_snapshot(&self, project_id: &str, snapshot_id: &str, dest_dir: &str) -> CmdResult<Vec<String>> {
+    pub async fn export_snapshot(
+        &self,
+        project_id: &str,
+        snapshot_id: &str,
+        dest_dir: &str,
+    ) -> CmdResult<Vec<String>> {
         Ok(self
             .engine()?
             .export_snapshot(project_id, snapshot_id.to_string(), PathBuf::from(dest_dir))
@@ -489,10 +572,17 @@ impl Shell {
     fn launch(&self, file: &Path) -> CmdResult<()> {
         let info = self.openrocket_info();
         let r = match info.path.as_deref().filter(|_| info.found) {
-            Some(exe) if openrocket::is_rocket_file(file) => self.platform.open_with(Path::new(exe), file),
+            Some(exe) if openrocket::is_rocket_file(file) => {
+                self.platform.open_with(Path::new(exe), file)
+            }
             _ => self.platform.open_path(file),
         };
-        r.map_err(|e| app_error(ErrorCode::NotFound, format!("Impossibile aprire il file: {e}")))
+        r.map_err(|e| {
+            app_error(
+                ErrorCode::NotFound,
+                format!("Impossibile aprire il file: {e}"),
+            )
+        })
     }
 
     pub async fn open_in_openrocket(&self, project_id: &str, path: &str) -> CmdResult<()> {
@@ -506,14 +596,19 @@ impl Shell {
         if path.is_empty()
             || rel.is_absolute()
             || path.contains('\\')
-            || rel.components().any(|c| !matches!(c, std::path::Component::Normal(_)))
+            || rel
+                .components()
+                .any(|c| !matches!(c, std::path::Component::Normal(_)))
             || path.split('/').any(|c| c.eq_ignore_ascii_case(".git"))
         {
             return Err(app_error(ErrorCode::InvalidPath, "Percorso non valido."));
         }
         let abs = Path::new(&project.folder).join(rel);
         if !abs.is_file() {
-            return Err(app_error(ErrorCode::NotFound, "Il file non esiste più nella cartella del progetto."));
+            return Err(app_error(
+                ErrorCode::NotFound,
+                "Il file non esiste più nella cartella del progetto.",
+            ));
         }
         self.launch(&abs)
     }
@@ -524,9 +619,12 @@ impl Shell {
         if !p.is_dir() {
             return Err(app_error(ErrorCode::NotFound, "La cartella non esiste."));
         }
-        self.platform
-            .open_path(p)
-            .map_err(|e| app_error(ErrorCode::Internal, format!("Impossibile aprire la cartella: {e}")))
+        self.platform.open_path(p).map_err(|e| {
+            app_error(
+                ErrorCode::Internal,
+                format!("Impossibile aprire la cartella: {e}"),
+            )
+        })
     }
 
     pub fn get_app_settings(&self) -> AppSettings {
@@ -562,15 +660,20 @@ impl Shell {
         if self.config.updater_endpoint.is_empty() || self.config.updater_pubkey.is_empty() {
             return Ok(UpdateInfo::default());
         }
-        self.platform
-            .check_update()
-            .await
-            .map_err(|e| app_error(ErrorCode::Network, format!("Controllo degli aggiornamenti non riuscito: {e}")))
+        self.platform.check_update().await.map_err(|e| {
+            app_error(
+                ErrorCode::Network,
+                format!("Controllo degli aggiornamenti non riuscito: {e}"),
+            )
+        })
     }
 
     pub async fn install_update(&self) -> CmdResult<()> {
         if self.config.updater_endpoint.is_empty() || self.config.updater_pubkey.is_empty() {
-            return Err(app_error(ErrorCode::Internal, "Gli aggiornamenti non sono configurati."));
+            return Err(app_error(
+                ErrorCode::Internal,
+                "Gli aggiornamenti non sono configurati.",
+            ));
         }
         if !self.wait_idle(Duration::from_secs(300)).await {
             return Err(app_error(
@@ -578,10 +681,12 @@ impl Shell {
                 "C'è una sincronizzazione in corso: riprova tra un momento.",
             ));
         }
-        self.platform
-            .install_update()
-            .await
-            .map_err(|e| app_error(ErrorCode::Internal, format!("Installazione dell'aggiornamento non riuscita: {e}")))
+        self.platform.install_update().await.map_err(|e| {
+            app_error(
+                ErrorCode::Internal,
+                format!("Installazione dell'aggiornamento non riuscita: {e}"),
+            )
+        })
     }
 
     /// Writes the diagnostics zip (log, status, journal, command log, versions) and returns its path.
@@ -605,7 +710,10 @@ impl Shell {
         ));
         entries.push((
             "log/rocketsync.log".into(),
-            logging::tail(&self.data_dir.join("logs").join(logging::LOG_FILE), 2 * 1024 * 1024),
+            logging::tail(
+                &self.data_dir.join("logs").join(logging::LOG_FILE),
+                2 * 1024 * 1024,
+            ),
         ));
         if let Ok(engine) = self.engine() {
             let cmds: Vec<String> = engine
@@ -621,7 +729,10 @@ impl Shell {
                         r.exit_code,
                         r.duration.as_millis(),
                         r.command_line(),
-                        r.error.as_deref().map(|e| format!(" -> {e}")).unwrap_or_default()
+                        r.error
+                            .as_deref()
+                            .map(|e| format!(" -> {e}"))
+                            .unwrap_or_default()
                     )
                 })
                 .collect();
@@ -629,21 +740,39 @@ impl Shell {
             let json = |v: &dyn erased_ser::Ser| v.to_pretty();
             for p in engine.list_projects().unwrap_or_default() {
                 let id = &p.project_id;
-                entries.push((diagnostics::project_entry(id, "project.json"), json(&erased_ser::Wrap(&p))));
+                entries.push((
+                    diagnostics::project_entry(id, "project.json"),
+                    json(&erased_ser::Wrap(&p)),
+                ));
                 if let Ok(s) = engine.status(id).await {
-                    entries.push((diagnostics::project_entry(id, "status.json"), json(&erased_ser::Wrap(&s))));
+                    entries.push((
+                        diagnostics::project_entry(id, "status.json"),
+                        json(&erased_ser::Wrap(&s)),
+                    ));
                 }
                 if let Ok(j) = engine.journal(id, 200) {
-                    entries.push((diagnostics::project_entry(id, "journal.json"), json(&erased_ser::Wrap(&j))));
+                    entries.push((
+                        diagnostics::project_entry(id, "journal.json"),
+                        json(&erased_ser::Wrap(&j)),
+                    ));
                 }
                 if let Ok(v) = engine.list_versions(id, Some(50), None).await {
-                    entries.push((diagnostics::project_entry(id, "versions.json"), json(&erased_ser::Wrap(&v))));
+                    entries.push((
+                        diagnostics::project_entry(id, "versions.json"),
+                        json(&erased_ser::Wrap(&v)),
+                    ));
                 }
                 if let Ok(c) = engine.list_conflicts(id, true).await {
-                    entries.push((diagnostics::project_entry(id, "conflicts.json"), json(&erased_ser::Wrap(&c))));
+                    entries.push((
+                        diagnostics::project_entry(id, "conflicts.json"),
+                        json(&erased_ser::Wrap(&c)),
+                    ));
                 }
                 if let Ok(s) = engine.list_snapshots(id).await {
-                    entries.push((diagnostics::project_entry(id, "snapshots.json"), json(&erased_ser::Wrap(&s))));
+                    entries.push((
+                        diagnostics::project_entry(id, "snapshots.json"),
+                        json(&erased_ser::Wrap(&s)),
+                    ));
                 }
             }
         }
@@ -655,7 +784,12 @@ impl Shell {
         tokio::task::spawn_blocking(move || diagnostics::write_zip(&d2, &entries))
             .await
             .map_err(|_| app_error(ErrorCode::Internal, "Esportazione interrotta."))?
-            .map_err(|e| app_error(ErrorCode::Internal, format!("Impossibile scrivere la diagnostica: {e}")))?;
+            .map_err(|e| {
+                app_error(
+                    ErrorCode::Internal,
+                    format!("Impossibile scrivere la diagnostica: {e}"),
+                )
+            })?;
         Ok(dest.to_string_lossy().into_owned())
     }
 }

@@ -37,7 +37,9 @@ mod tests {
         let b = generate_verifier();
         assert_ne!(a, b);
         assert!((43..=128).contains(&a.len()), "{}", a.len());
-        assert!(a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+        assert!(a
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
         let c = challenge(&a);
         assert_eq!(c.len(), 43);
         assert!(!c.contains('='));

@@ -29,7 +29,9 @@ pub fn data_dir() -> PathBuf {
 
 /// Folder of the executable (on Windows this is where Tauri puts the bundled resources).
 pub fn exe_dir() -> Option<PathBuf> {
-    std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf))
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf))
 }
 
 /// Where MinGit lives relative to the resource folder.
@@ -93,7 +95,9 @@ pub fn sanitize_folder_name(name: &str) -> String {
     let upper = s.to_uppercase();
     let stem = upper.split('.').next().unwrap_or("");
     let reserved = ["CON", "PRN", "AUX", "NUL"].contains(&stem)
-        || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT")) && stem.ends_with(|c: char| c.is_ascii_digit()));
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem.ends_with(|c: char| c.is_ascii_digit()));
     if s.is_empty() {
         "Progetto".to_string()
     } else if reserved {
@@ -112,21 +116,42 @@ mod tests {
         let res = Path::new("/app");
         let bundled = res.join(MINGIT_GIT_EXE);
         // override
-        assert_eq!(locate_git(Some(res), true, false, Some("/x/git"), &|_| false), PathBuf::from("/x/git"));
+        assert_eq!(
+            locate_git(Some(res), true, false, Some("/x/git"), &|_| false),
+            PathBuf::from("/x/git")
+        );
         // bundled MinGit present
-        assert_eq!(locate_git(Some(res), true, false, None, &|p| p == bundled), bundled);
+        assert_eq!(
+            locate_git(Some(res), true, false, None, &|p| p == bundled),
+            bundled
+        );
         // missing in release: the bundled path (so the error names it)
-        assert_eq!(locate_git(Some(res), true, false, None, &|_| false), bundled);
+        assert_eq!(
+            locate_git(Some(res), true, false, None, &|_| false),
+            bundled
+        );
         // missing in debug: system git
-        assert_eq!(locate_git(Some(res), true, true, None, &|_| false), PathBuf::from("git.exe"));
+        assert_eq!(
+            locate_git(Some(res), true, true, None, &|_| false),
+            PathBuf::from("git.exe")
+        );
         // other platforms
-        assert_eq!(locate_git(Some(res), false, false, None, &|_| false), PathBuf::from("git"));
-        assert_eq!(locate_git(Some(res), false, false, Some("  "), &|_| false), PathBuf::from("git"));
+        assert_eq!(
+            locate_git(Some(res), false, false, None, &|_| false),
+            PathBuf::from("git")
+        );
+        assert_eq!(
+            locate_git(Some(res), false, false, Some("  "), &|_| false),
+            PathBuf::from("git")
+        );
     }
 
     #[test]
     fn folder_names_are_valid_on_windows() {
-        assert_eq!(sanitize_folder_name("Experimental Rocket"), "Experimental Rocket");
+        assert_eq!(
+            sanitize_folder_name("Experimental Rocket"),
+            "Experimental Rocket"
+        );
         assert_eq!(sanitize_folder_name("A/B: \"C\"?"), "A_B_ _C__");
         assert_eq!(sanitize_folder_name("  Razzo.  "), "Razzo");
         assert_eq!(sanitize_folder_name("..."), "Progetto");
@@ -138,6 +163,9 @@ mod tests {
 
     #[test]
     fn projects_root() {
-        assert_eq!(default_projects_root(Some(Path::new("/home/u"))), PathBuf::from("/home/u/RocketSync"));
+        assert_eq!(
+            default_projects_root(Some(Path::new("/home/u"))),
+            PathBuf::from("/home/u/RocketSync")
+        );
     }
 }

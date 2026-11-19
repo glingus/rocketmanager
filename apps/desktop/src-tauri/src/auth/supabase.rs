@@ -136,7 +136,11 @@ impl SupabaseClient {
     }
 
     /// Exchanges the authorization code (PKCE flow).
-    pub async fn exchange_code(&self, code: &str, verifier: &str) -> Result<TokenResponse, AuthError> {
+    pub async fn exchange_code(
+        &self,
+        code: &str,
+        verifier: &str,
+    ) -> Result<TokenResponse, AuthError> {
         self.post_json(
             &format!("{}/auth/v1/token?grant_type=pkce", self.base),
             None,
@@ -156,7 +160,11 @@ impl SupabaseClient {
     }
 
     /// Renews the GitHub user token through the Edge Function (the client secret stays on the server).
-    pub async fn refresh_github_token(&self, access_jwt: &str, refresh_token: &str) -> Result<GithubTokens, AuthError> {
+    pub async fn refresh_github_token(
+        &self,
+        access_jwt: &str,
+        refresh_token: &str,
+    ) -> Result<GithubTokens, AuthError> {
         self.post_json(
             &format!("{}/functions/v1/github-token-refresh", self.base),
             Some(access_jwt),
@@ -178,7 +186,11 @@ impl SupabaseClient {
 }
 
 /// `GET <api>/user` with the GitHub token.
-pub async fn fetch_github_user(http: &reqwest::Client, api_base: &str, token: &str) -> Result<GithubUser, AuthError> {
+pub async fn fetch_github_user(
+    http: &reqwest::Client,
+    api_base: &str,
+    token: &str,
+) -> Result<GithubUser, AuthError> {
     let resp = http
         .get(format!("{}/user", api_base.trim_end_matches('/')))
         .header("Accept", "application/vnd.github+json")
@@ -213,7 +225,8 @@ mod tests {
 
     #[test]
     fn authorize_url_has_the_expected_parameters() {
-        let u = url::Url::parse(&client().authorize_url("http://127.0.0.1:53682/callback", "CHAL")).unwrap();
+        let u = url::Url::parse(&client().authorize_url("http://127.0.0.1:53682/callback", "CHAL"))
+            .unwrap();
         assert_eq!(u.host_str(), Some("abc.supabase.co"));
         assert_eq!(u.path(), "/auth/v1/authorize");
         let q: std::collections::HashMap<_, _> = u.query_pairs().into_owned().collect();
@@ -233,9 +246,16 @@ mod tests {
 
     #[test]
     fn error_messages_are_extracted() {
-        let j = serde_json::json!({"error": "invalid_grant", "error_description": "Codice scaduto"});
+        let j =
+            serde_json::json!({"error": "invalid_grant", "error_description": "Codice scaduto"});
         assert_eq!(error_message(&j, 400), "Codice scaduto");
-        assert_eq!(error_message(&serde_json::json!({"msg": "boh"}), 400), "boh");
-        assert_eq!(error_message(&serde_json::Value::Null, 502), "errore HTTP 502");
+        assert_eq!(
+            error_message(&serde_json::json!({"msg": "boh"}), 400),
+            "boh"
+        );
+        assert_eq!(
+            error_message(&serde_json::Value::Null, 502),
+            "errore HTTP 502"
+        );
     }
 }

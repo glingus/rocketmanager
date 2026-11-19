@@ -84,13 +84,21 @@ impl ProjectInner {
         let eq = if meta.size > MAX_FILE_BYTES {
             false
         } else {
-            match (std::fs::read(self.folder.join(path)), self.repo.cat_blob(oid)) {
-                (Ok(disk), Ok(head)) => self.shared.config.inspector.content_equal(path, &disk, &head),
+            match (
+                std::fs::read(self.folder.join(path)),
+                self.repo.cat_blob(oid),
+            ) {
+                (Ok(disk), Ok(head)) => self
+                    .shared
+                    .config
+                    .inspector
+                    .content_equal(path, &disk, &head),
                 _ => false,
             }
         };
         self.rt(|r| {
-            r.equal_cache.insert(path.to_string(), (meta, oid.to_string(), eq));
+            r.equal_cache
+                .insert(path.to_string(), (meta, oid.to_string(), eq));
         });
         eq
     }

@@ -515,10 +515,25 @@ async fn materialize_rechecks_each_file_right_before_writing_it() {
     );
     let e = b.engine.update_now(PROJECT, false).await.unwrap_err();
     assert_eq!(e.code(), ErrorCode::LocalChangesPresent, "{e}");
-    assert!(matches!(&e, CoreError::LocalChangesPresent(p) if p == &vec!["Y.ork".to_string()]), "{e}");
-    assert_eq!(b.read("Y.ork"), ork("salvato-da-bruno"), "the user's save is never overwritten");
-    assert_eq!(b.read("X.ork"), ork("x1"), "what was already written has been rolled back");
-    assert_eq!(b.head(), git(&b.folder, &["rev-parse", "v1^{commit}"]), "HEAD did not move");
+    assert!(
+        matches!(&e, CoreError::LocalChangesPresent(p) if p == &vec!["Y.ork".to_string()]),
+        "{e}"
+    );
+    assert_eq!(
+        b.read("Y.ork"),
+        ork("salvato-da-bruno"),
+        "the user's save is never overwritten"
+    );
+    assert_eq!(
+        b.read("X.ork"),
+        ork("x1"),
+        "what was already written has been rolled back"
+    );
+    assert_eq!(
+        b.head(),
+        git(&b.folder, &["rev-parse", "v1^{commit}"]),
+        "HEAD did not move"
+    );
     // nothing left half-way: the next update sees a normal overlap and opens a conflict
     b.engine.failpoints().clear_all();
     let st = b.sync().await;

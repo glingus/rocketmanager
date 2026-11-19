@@ -51,7 +51,10 @@ impl TauriPlatform {
 
 impl Platform for TauriPlatform {
     fn open_url(&self, url: &str) -> Result<(), String> {
-        self.app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+        self.app
+            .opener()
+            .open_url(url, None::<&str>)
+            .map_err(|e| e.to_string())
     }
     fn open_path(&self, path: &Path) -> Result<(), String> {
         self.app
@@ -72,7 +75,11 @@ impl Platform for TauriPlatform {
         self.app.path().home_dir().ok()
     }
     fn pick_folder(&self, default: Option<&Path>) -> Option<PathBuf> {
-        let mut b = self.app.dialog().file().set_title("Scegli la cartella del progetto");
+        let mut b = self
+            .app
+            .dialog()
+            .file()
+            .set_title("Scegli la cartella del progetto");
         if let Some(d) = default.filter(|d| d.is_dir()) {
             b = b.set_directory(d);
         }
@@ -101,7 +108,10 @@ impl Platform for TauriPlatform {
             let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
                 return Ok(());
             };
-            update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+            update
+                .download_and_install(|_, _| {}, || {})
+                .await
+                .map_err(|e| e.to_string())?;
             self.app.restart();
         })
     }
@@ -148,7 +158,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
                 show_main_window(tray.app_handle());
             }
         });
@@ -160,7 +175,10 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 }
 
 /// Builds the services: engine (with startup recovery), authentication, settings.
-async fn build_shell(app: AppHandle, minimize_flag: Arc<std::sync::atomic::AtomicBool>) -> Arc<Shell> {
+async fn build_shell(
+    app: AppHandle,
+    minimize_flag: Arc<std::sync::atomic::AtomicBool>,
+) -> Arc<Shell> {
     let data_dir = paths::data_dir();
     let _ = std::fs::create_dir_all(&data_dir);
     logging::init(&data_dir);
@@ -178,13 +196,19 @@ async fn build_shell(app: AppHandle, minimize_flag: Arc<std::sync::atomic::Atomi
     let settings = Arc::new(RwLock::new(settings));
     let secrets: Arc<dyn SecretStore> = Arc::new(system_store());
     let auth = Arc::new(AuthService::new(config.clone(), secrets.clone()));
-    let platform: Arc<dyn Platform> = Arc::new(TauriPlatform { app: app.clone(), config: config.clone() });
+    let platform: Arc<dyn Platform> = Arc::new(TauriPlatform {
+        app: app.clone(),
+        config: config.clone(),
+    });
 
     let git_path = paths::git_path();
-    let git_version = rs_git::Git::new(rs_git::GitConfig { git_path: git_path.clone(), ..Default::default() })
-        .version()
-        .ok()
-        .map(|v| v.to_string());
+    let git_version = rs_git::Git::new(rs_git::GitConfig {
+        git_path: git_path.clone(),
+        ..Default::default()
+    })
+    .version()
+    .ok()
+    .map(|v| v.to_string());
 
     let mut cfg = EngineConfig::new(&data_dir);
     cfg.git.git_path = git_path;
@@ -197,12 +221,22 @@ async fn build_shell(app: AppHandle, minimize_flag: Arc<std::sync::atomic::Atomi
         cfg.detector = Arc::new(rs_core::WindowsEditorDetector);
     }
     cfg.client_version = env!("CARGO_PKG_VERSION").to_string();
-    cfg.timing.fetch_interval = Duration::from_secs(settings.read().map(|s| s.fetch_interval_seconds).unwrap_or(60) as u64);
+    cfg.timing.fetch_interval = Duration::from_secs(
+        settings
+            .read()
+            .map(|s| s.fetch_interval_seconds)
+            .unwrap_or(60) as u64,
+    );
 
     let engine = match Engine::new(cfg).await {
         Ok(engine) => {
             let sink: Arc<dyn EventSink> = Arc::new(app.clone());
-            tokio::spawn(events::forward(engine.subscribe(), sink, platform.clone(), settings.clone()));
+            tokio::spawn(events::forward(
+                engine.subscribe(),
+                sink,
+                platform.clone(),
+                settings.clone(),
+            ));
             engine.set_identity(auth.identity());
             if let Err(e) = engine.start().await {
                 tracing::error!(error = %e, "engine start failed");
@@ -225,7 +259,9 @@ async fn build_shell(app: AppHandle, minimize_flag: Arc<std::sync::atomic::Atomi
         config,
         git_version,
         settings,
-        remote_base: std::env::var("ROCKETSYNC_REMOTE_BASE").ok().filter(|v| !v.trim().is_empty()),
+        remote_base: std::env::var("ROCKETSYNC_REMOTE_BASE")
+            .ok()
+            .filter(|v| !v.trim().is_empty()),
     }))
 }
 
@@ -247,7 +283,9 @@ fn spawn_token_refresher(shell: Arc<Shell>) {
 pub fn run() {
     let state = AppState::new();
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app)
+        }))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),

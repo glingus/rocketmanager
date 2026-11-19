@@ -9,20 +9,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-/// The exact sequence of OpenRocket's save, with `gap` between the two renames.
-fn openrocket_save(u: &User, rel: &str, bytes: &[u8], gap: Duration) {
-    let target = u.path(rel);
-    let dir = target.parent().unwrap();
-    let tmp = dir.join("ORSave1234567.tmp");
-    let bak = dir.join(format!("{}-bak", target.file_name().unwrap().to_string_lossy()));
-    fs::write(&tmp, bytes).unwrap();
-    fs::rename(&target, &bak).unwrap();
-    std::thread::sleep(gap);
-    fs::rename(&tmp, &target).unwrap();
-    std::thread::sleep(gap);
-    fs::remove_file(&bak).unwrap();
-}
-
 /// Polls the status in the background and records anything that must never be observed.
 fn spawn_observer(engine: Engine, stop: Arc<AtomicBool>) -> tokio::task::JoinHandle<Vec<String>> {
     tokio::spawn(async move {
@@ -45,7 +31,9 @@ fn spawn_observer(engine: Engine, stop: Arc<AtomicBool>) -> tokio::task::JoinHan
 }
 
 async fn publish_v1(a: &User) {
-    a.engine.set_publish_policy(PROJECT, PublishPolicy::Manual).unwrap();
+    a.engine
+        .set_publish_policy(PROJECT, PublishPolicy::Manual)
+        .unwrap();
     a.write("Razzo.ork", &ork_ts("uno", 2020));
     a.publish("v1").await.unwrap();
     a.engine
@@ -94,7 +82,10 @@ async fn a_save_of_the_same_rocket_is_not_a_change_nor_a_deletion() {
     assert_eq!(remote.tags(), vec!["v1"], "no version was created");
     assert_eq!(a.git(&["rev-list", "--count", "HEAD"]), "2");
     // and an explicit publish has nothing to do
-    assert_eq!(a.publish("niente").await.unwrap_err().code(), ErrorCode::NotFound);
+    assert_eq!(
+        a.publish("niente").await.unwrap_err().code(),
+        ErrorCode::NotFound
+    );
 }
 
 #[tokio::test]
@@ -123,17 +114,29 @@ async fn a_real_change_saved_the_openrocket_way_is_one_modification_only() {
     .await
     .unwrap();
 
-    a.wait_status(10, |s| s.head_version == Some(2) && s.state == SyncState::Synced).await;
+    a.wait_status(10, |s| {
+        s.head_version == Some(2) && s.state == SyncState::Synced
+    })
+    .await;
     stop.store(true, Ordering::SeqCst);
     let bad = obs.await.unwrap();
     assert!(bad.is_empty(), "{bad:?}");
     assert_eq!(remote.tags(), vec!["v1", "v2"], "exactly one new version");
     // the only change of v2 is the modification of Razzo.ork
-    let files = git(&remote.path, &["diff-tree", "--no-commit-id", "--name-status", "-r", "v2"]);
+    let files = git(
+        &remote.path,
+        &["diff-tree", "--no-commit-id", "--name-status", "-r", "v2"],
+    );
     assert_eq!(files, "M\tRazzo.ork");
-    assert_eq!(git_bytes(&remote.path, &["show", "v2:Razzo.ork"]), new_bytes);
+    assert_eq!(
+        git_bytes(&remote.path, &["show", "v2:Razzo.ork"]),
+        new_bytes
+    );
     let tree = git(&remote.path, &["ls-tree", "-r", "--name-only", "v2"]);
-    assert!(!tree.contains("ork-bak") && !tree.contains("ORSave"), "{tree}");
+    assert!(
+        !tree.contains("ork-bak") && !tree.contains("ORSave"),
+        "{tree}"
+    );
 }
 
 #[tokio::test]
@@ -145,18 +148,31 @@ async fn leftover_backup_and_tmp_are_ignored_even_without_gitignore_entries() {
     a.write("sub/Altro.ork-bak", b"vecchio");
     // leftovers of an old crash
     let old = std::time::SystemTime::now() - Duration::from_secs(300);
-    for f in ["ORSave5.tmp"] {
-        let h = fs::OpenOptions::new().write(true).open(a.path(f)).unwrap();
-        h.set_modified(old).unwrap();
-    }
+    let h = fs::OpenOptions::new()
+        .write(true)
+        .open(a.path("ORSave5.tmp"))
+        .unwrap();
+    h.set_modified(old).unwrap();
     a.write_ork("Vero.ork", "vero");
-    let st = a.wait_status(5, |s| s.changed_files.iter().any(|f| f.path == "Vero.ork" && f.valid.is_some())).await;
+    let st = a
+        .wait_status(5, |s| {
+            s.changed_files
+                .iter()
+                .any(|f| f.path == "Vero.ork" && f.valid.is_some())
+        })
+        .await;
     let paths: Vec<&str> = st.changed_files.iter().map(|f| f.path.as_str()).collect();
     assert_eq!(paths, vec!["Vero.ork"]);
     let st = a.publish("Tutto").await.unwrap();
     assert_synced(&st);
-    let tree = git(&remote.path, &["ls-tree", "-r", "--name-only", "refs/heads/main"]);
-    assert!(!tree.contains("ork-bak") && !tree.contains("ORSave"), "{tree}");
+    let tree = git(
+        &remote.path,
+        &["ls-tree", "-r", "--name-only", "refs/heads/main"],
+    );
+    assert!(
+        !tree.contains("ork-bak") && !tree.contains("ORSave"),
+        "{tree}"
+    );
 }
 
 #[tokio::test]
@@ -168,17 +184,24 @@ async fn deletion_waits_for_a_save_in_progress_and_for_the_debounce() {
     // a real deletion: stable only after the debounce
     fs::remove_file(a.path("Razzo.ork")).unwrap();
     let first = a.status().await;
-    let del = first.changed_files.iter().find(|f| f.path == "Razzo.ork").unwrap();
+    let del = first
+        .changed_files
+        .iter()
+        .find(|f| f.path == "Razzo.ork")
+        .unwrap();
     assert_eq!(del.change, FileChangeKind::Deleted);
     assert!(!del.stable, "just deleted: not stable yet");
-    let st = a.wait_status(3, |s| s.changed_files.iter().any(|f| f.stable)).await;
+    let st = a
+        .wait_status(3, |s| s.changed_files.iter().any(|f| f.stable))
+        .await;
     assert_eq!(st.changed_files[0].change, FileChangeKind::Deleted);
     // with a backup next to it the deletion is never considered stable
     fs::write(a.path("Razzo.ork-bak"), b"x").unwrap();
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert!(!a.status().await.changed_files[0].stable);
     fs::remove_file(a.path("Razzo.ork-bak")).unwrap();
-    a.wait_status(3, |s| s.changed_files.iter().all(|f| f.stable)).await;
+    a.wait_status(3, |s| s.changed_files.iter().all(|f| f.stable))
+        .await;
     let st = a.publish("Rimosso").await.unwrap();
     assert_synced(&st);
 }
@@ -197,7 +220,10 @@ async fn files_with_the_same_content_but_different_bytes_are_not_modifications()
     let st = b.status().await;
     assert_synced(&st);
     assert!(st.auto_publish_at.is_none());
-    assert_eq!(b.publish("niente").await.unwrap_err().code(), ErrorCode::NotFound);
+    assert_eq!(
+        b.publish("niente").await.unwrap_err().code(),
+        ErrorCode::NotFound
+    );
 
     // (b) ... and such a file can be overwritten by an incoming update, without a conflict
     a.write("Razzo.ork", &ork_ts("due", 2020));

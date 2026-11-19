@@ -96,7 +96,9 @@ pub fn auth_error_to_app(e: &AuthError) -> AppError {
     AppError {
         code,
         message: match e {
-            AuthError::Network(_) => "Impossibile raggiungere il server di accesso. Controlla la connessione.".into(),
+            AuthError::Network(_) => {
+                "Impossibile raggiungere il server di accesso. Controlla la connessione.".into()
+            }
             AuthError::Rejected(m) => format!("Accesso non riuscito: {m}."),
             AuthError::Cancelled(_) => "Accesso annullato o scaduto. Riprova.".into(),
             AuthError::NotConfigured | AuthError::Invalid(_) => e.to_string(),
@@ -109,7 +111,9 @@ pub fn auth_error_to_app(e: &AuthError) -> AppError {
 /// The GitHub token of the signed-in user (used by the askpass helper).
 pub fn load_github_token(store: &dyn SecretStore) -> Option<String> {
     let s = store.get(KEY_GITHUB).ok().flatten()?;
-    serde_json::from_str::<StoredGithub>(&s).ok().map(|g| g.access_token)
+    serde_json::from_str::<StoredGithub>(&s)
+        .ok()
+        .map(|g| g.access_token)
 }
 
 #[cfg(test)]
@@ -119,7 +123,9 @@ pub fn save_github_token_for_tests(store: &dyn SecretStore, token: &str) {
         refresh_token: None,
         expires_at: None,
     };
-    store.set(KEY_GITHUB, &serde_json::to_string(&g).unwrap()).unwrap();
+    store
+        .set(KEY_GITHUB, &serde_json::to_string(&g).unwrap())
+        .unwrap();
 }
 
 fn identity_of(p: &StoredProfile) -> Identity {
@@ -137,7 +143,9 @@ fn identity_of(p: &StoredProfile) -> Identity {
 }
 
 fn parse_iso(s: &str) -> Option<i64> {
-    chrono::DateTime::parse_from_rfc3339(s).ok().map(|d| d.timestamp())
+    chrono::DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|d| d.timestamp())
 }
 
 /// Sign-in service.
@@ -169,7 +177,11 @@ impl AuthService {
 
     /// Test hooks: other GitHub API base and clock.
     #[cfg(test)]
-    pub fn with_test_hooks(mut self, github_api: &str, now: Arc<dyn Fn() -> i64 + Send + Sync>) -> Self {
+    pub fn with_test_hooks(
+        mut self,
+        github_api: &str,
+        now: Arc<dyn Fn() -> i64 + Send + Sync>,
+    ) -> Self {
         self.github_api = github_api.to_string();
         self.now = now;
         self
@@ -292,7 +304,8 @@ impl AuthService {
             .await
             .map_err(|e| AuthError::Cancelled(e.to_string()))?;
         let url = client.authorize_url(&callback::redirect_url(port), &challenge);
-        open_browser(&url).map_err(|e| AuthError::Cancelled(format!("impossibile aprire il browser ({e})")))?;
+        open_browser(&url)
+            .map_err(|e| AuthError::Cancelled(format!("impossibile aprire il browser ({e})")))?;
         let cb = callback::wait_for_callback(listener, Duration::from_secs(300))
             .await
             .map_err(|e| AuthError::Cancelled(e.to_string()))?;
@@ -353,23 +366,32 @@ impl AuthService {
             return Ok(());
         }
         let client = self.client().map_err(|e| auth_error_to_app(&e))?;
-        let mut session = self.read::<StoredSession>(KEY_SESSION).ok_or_else(|| AppError {
-            code: ErrorCode::AuthRequired,
-            message: "La sessione è scaduta: accedi di nuovo.".into(),
-            detail: None,
-            retryable: false,
-        })?;
+        let mut session = self
+            .read::<StoredSession>(KEY_SESSION)
+            .ok_or_else(|| AppError {
+                code: ErrorCode::AuthRequired,
+                message: "La sessione è scaduta: accedi di nuovo.".into(),
+                detail: None,
+                retryable: false,
+            })?;
         if session.expires_at <= self.now() + 30 {
-            session = self.renew_session(&session).await.map_err(|e| auth_error_to_app(&e))?;
+            session = self
+                .renew_session(&session)
+                .await
+                .map_err(|e| auth_error_to_app(&e))?;
         }
-        match client.refresh_github_token(&session.access_token, &rt).await {
+        match client
+            .refresh_github_token(&session.access_token, &rt)
+            .await
+        {
             Ok(t) => {
                 let new = StoredGithub {
                     access_token: t.access_token,
                     refresh_token: t.refresh_token.or(Some(rt)),
                     expires_at: t.expires_at.as_deref().and_then(parse_iso),
                 };
-                self.write(KEY_GITHUB, &new).map_err(|e| auth_error_to_app(&e))?;
+                self.write(KEY_GITHUB, &new)
+                    .map_err(|e| auth_error_to_app(&e))?;
                 Ok(())
             }
             Err(AuthError::Rejected(m)) => {

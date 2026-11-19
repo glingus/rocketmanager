@@ -76,16 +76,28 @@ mod tests {
 
     #[test]
     fn classifies_prompts() {
-        assert_eq!(classify("Username for 'https://github.com': "), Prompt::Username);
-        assert_eq!(classify("Password for 'https://x-access-token@github.com': "), Prompt::Password);
+        assert_eq!(
+            classify("Username for 'https://github.com': "),
+            Prompt::Username
+        );
+        assert_eq!(
+            classify("Password for 'https://x-access-token@github.com': "),
+            Prompt::Password
+        );
         assert_eq!(classify("password:"), Prompt::Password);
         assert_eq!(classify("Enter passphrase for key"), Prompt::Other);
     }
 
     #[test]
     fn answers_username_and_password() {
-        assert_eq!(answer("Username for 'https://github.com': ", None).as_deref(), Some("x-access-token"));
-        assert_eq!(answer("Password for 'x': ", Some("ghu_abc")).as_deref(), Some("ghu_abc"));
+        assert_eq!(
+            answer("Username for 'https://github.com': ", None).as_deref(),
+            Some("x-access-token")
+        );
+        assert_eq!(
+            answer("Password for 'x': ", Some("ghu_abc")).as_deref(),
+            Some("ghu_abc")
+        );
         assert_eq!(answer("Password for 'x': ", None), None);
         assert_eq!(answer("Password for 'x': ", Some("")), None);
         assert_eq!(answer("Something else", Some("t")), None);
@@ -96,10 +108,24 @@ mod tests {
         let store = memory_store();
         crate::auth::save_github_token_for_tests(&store, "ghu_secret");
         let mut out = Vec::new();
-        assert_eq!(run(&["Password for 'https://github.com': ".into()], &store, &mut out), 0);
+        assert_eq!(
+            run(
+                &["Password for 'https://github.com': ".into()],
+                &store,
+                &mut out
+            ),
+            0
+        );
         assert_eq!(String::from_utf8(out).unwrap(), "ghu_secret\n");
         let mut out = Vec::new();
-        assert_eq!(run(&["Username for 'https://github.com': ".into()], &store, &mut out), 0);
+        assert_eq!(
+            run(
+                &["Username for 'https://github.com': ".into()],
+                &store,
+                &mut out
+            ),
+            0
+        );
         assert_eq!(String::from_utf8(out).unwrap(), "x-access-token\n");
         // no prompt / unknown prompt / no token
         assert_eq!(run(&[], &store, &mut Vec::new()), 2);

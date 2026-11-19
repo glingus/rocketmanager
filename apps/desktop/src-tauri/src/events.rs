@@ -14,7 +14,9 @@ pub trait EventSink: Send + Sync {
 /// Text of the desktop notification for an event, if it deserves one.
 pub fn notification_for(ev: &EngineEvent) -> Option<(String, String)> {
     match ev {
-        EngineEvent::UpdateApplied { to_version, files, .. } => Some((
+        EngineEvent::UpdateApplied {
+            to_version, files, ..
+        } => Some((
             "Progetto aggiornato".into(),
             match to_version {
                 Some(v) => format!("Aggiornato alla versione {v} ({} file).", files.len()),
@@ -23,13 +25,18 @@ pub fn notification_for(ev: &EngineEvent) -> Option<(String, String)> {
         )),
         EngineEvent::ConflictDetected { files, .. } => Some((
             "Conflitto da risolvere".into(),
-            format!("Hai modificato lo stesso file di un collega: {}.", files.join(", ")),
+            format!(
+                "Hai modificato lo stesso file di un collega: {}.",
+                files.join(", ")
+            ),
         )),
         EngineEvent::StaleSaveSuspected { path, .. } => Some((
             "Salvataggio da controllare".into(),
             format!("«{path}» potrebbe essere stato salvato da una copia non aggiornata."),
         )),
-        EngineEvent::RecoveryPerformed { summary, .. } => Some(("Recupero dopo un arresto".into(), summary.clone())),
+        EngineEvent::RecoveryPerformed { summary, .. } => {
+            Some(("Recupero dopo un arresto".into(), summary.clone()))
+        }
         EngineEvent::SyncError { error, .. } if error.code != rs_core::ErrorCode::Network => {
             Some(("Problema di sincronizzazione".into(), error.message.clone()))
         }
@@ -49,7 +56,10 @@ pub async fn forward(
             Ok(ev) => {
                 let (name, payload) = ev.to_ipc();
                 sink.emit(name, payload);
-                let notify = settings.read().map(|s| s.desktop_notifications).unwrap_or(true);
+                let notify = settings
+                    .read()
+                    .map(|s| s.desktop_notifications)
+                    .unwrap_or(true);
                 if notify {
                     if let Some((t, b)) = notification_for(&ev) {
                         let _ = platform.notify(&t, &b);
@@ -70,16 +80,34 @@ mod tests {
 
     #[test]
     fn notifications_only_for_events_that_matter() {
-        let upd = EngineEvent::UpdateApplied { project_id: "p".into(), from_version: Some(1), to_version: Some(2), files: vec!["a".into()] };
+        let upd = EngineEvent::UpdateApplied {
+            project_id: "p".into(),
+            from_version: Some(1),
+            to_version: Some(2),
+            files: vec!["a".into()],
+        };
         assert!(notification_for(&upd).unwrap().1.contains("versione 2"));
-        let status = EngineEvent::OperationProgress { project_id: "p".into(), op: "x".into(), step: "y".into(), percent: None, message: String::new() };
+        let status = EngineEvent::OperationProgress {
+            project_id: "p".into(),
+            op: "x".into(),
+            step: "y".into(),
+            percent: None,
+            message: String::new(),
+        };
         assert!(notification_for(&status).is_none());
         let net = EngineEvent::SyncError {
             project_id: "p".into(),
-            error: rs_core::CoreError::Git(rs_git::GitError::Network { stderr: "x".into() }).to_app_error(),
+            error: rs_core::CoreError::Git(rs_git::GitError::Network { stderr: "x".into() })
+                .to_app_error(),
         };
-        assert!(notification_for(&net).is_none(), "being offline is not worth a notification");
-        let other = EngineEvent::SyncError { project_id: "p".into(), error: rs_core::CoreError::Internal("x".into()).to_app_error() };
+        assert!(
+            notification_for(&net).is_none(),
+            "being offline is not worth a notification"
+        );
+        let other = EngineEvent::SyncError {
+            project_id: "p".into(),
+            error: rs_core::CoreError::Internal("x".into()).to_app_error(),
+        };
         assert!(notification_for(&other).is_some());
     }
 }

@@ -79,7 +79,8 @@ impl ProjectInner {
             let write = if disk == target_oid {
                 false // already in the desired state (idempotent re-run, or a manual merge)
             } else if !allow_dirty.contains(&d.path)
-                && (disk == from_oid || self.equivalent_to(&d.path, disk.is_some(), from_oid.as_deref()))
+                && (disk == from_oid
+                    || self.equivalent_to(&d.path, disk.is_some(), from_oid.as_deref()))
             {
                 true
             } else {
@@ -207,10 +208,15 @@ impl ProjectInner {
         let (true, Some(oid)) = (on_disk, from_oid) else {
             return false;
         };
-        match (std::fs::read(self.folder.join(path)), self.repo.cat_blob(oid)) {
-            (Ok(disk), Ok(old)) if disk.len() as u64 <= MAX_FILE_BYTES => {
-                self.shared.config.inspector.content_equal(path, &disk, &old)
-            }
+        match (
+            std::fs::read(self.folder.join(path)),
+            self.repo.cat_blob(oid),
+        ) {
+            (Ok(disk), Ok(old)) if disk.len() as u64 <= MAX_FILE_BYTES => self
+                .shared
+                .config
+                .inspector
+                .content_equal(path, &disk, &old),
             _ => false,
         }
     }

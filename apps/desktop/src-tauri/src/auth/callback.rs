@@ -38,7 +38,10 @@ pub async fn bind_loopback() -> Result<(TcpListener, u16), CallbackError> {
             return Ok((l, port));
         }
     }
-    Err(CallbackError::NoFreePort(*REDIRECT_PORTS.start(), *REDIRECT_PORTS.end()))
+    Err(CallbackError::NoFreePort(
+        *REDIRECT_PORTS.start(),
+        *REDIRECT_PORTS.end(),
+    ))
 }
 
 /// Redirect URL for a port.
@@ -74,15 +77,16 @@ pub fn parse_request_line(line: &str) -> Option<Callback> {
     if let Some(c) = code.filter(|c| !c.is_empty()) {
         return Some(Callback::Code(c));
     }
-    Some(Callback::Error(
-        err_desc
-            .or(err)
-            .unwrap_or_else(|| "risposta di accesso senza codice".to_string()),
-    ))
+    Some(Callback::Error(err_desc.or(err).unwrap_or_else(|| {
+        "risposta di accesso senza codice".to_string()
+    })))
 }
 
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 /// The page shown in the browser (Italian).
@@ -94,7 +98,10 @@ pub fn response_page(result: &Callback) -> String {
         ),
         Callback::Error(e) => (
             "Accesso non riuscito".to_string(),
-            format!("Qualcosa non ha funzionato: {}. Torna a Rocket Sync e riprova.", html_escape(e)),
+            format!(
+                "Qualcosa non ha funzionato: {}. Torna a Rocket Sync e riprova.",
+                html_escape(e)
+            ),
         ),
     };
     format!(
@@ -133,21 +140,35 @@ async fn respond(stream: &mut TcpStream, status: &str, body: &str) {
 }
 
 /// Serves requests until the redirect arrives (other paths, e.g. `/favicon.ico`, get a 404).
-pub async fn wait_for_callback(listener: TcpListener, timeout: Duration) -> Result<Callback, CallbackError> {
+pub async fn wait_for_callback(
+    listener: TcpListener,
+    timeout: Duration,
+) -> Result<Callback, CallbackError> {
     let fut = async {
         loop {
-            let (mut stream, _) = listener.accept().await.map_err(|e| CallbackError::Io(e.to_string()))?;
-            let head = match tokio::time::timeout(Duration::from_secs(5), read_head(&mut stream)).await {
-                Ok(Ok(h)) => h,
-                _ => continue,
-            };
+            let (mut stream, _) = listener
+                .accept()
+                .await
+                .map_err(|e| CallbackError::Io(e.to_string()))?;
+            let head =
+                match tokio::time::timeout(Duration::from_secs(5), read_head(&mut stream)).await {
+                    Ok(Ok(h)) => h,
+                    _ => continue,
+                };
             let first = head.lines().next().unwrap_or("");
             match parse_request_line(first) {
                 Some(cb) => {
                     respond(&mut stream, "200 OK", &response_page(&cb)).await;
                     return Ok(cb);
                 }
-                None => respond(&mut stream, "404 Not Found", "<!doctype html><title>404</title>").await,
+                None => {
+                    respond(
+                        &mut stream,
+                        "404 Not Found",
+                        "<!doctype html><title>404</title>",
+                    )
+                    .await
+                }
             }
         }
     };
@@ -168,14 +189,19 @@ mod tests {
             Some(Callback::Code("abc 123".into()))
         );
         assert_eq!(
-            parse_request_line("GET /callback?error=access_denied&error_description=Accesso+negato HTTP/1.1"),
+            parse_request_line(
+                "GET /callback?error=access_denied&error_description=Accesso+negato HTTP/1.1"
+            ),
             Some(Callback::Error("Accesso negato".into()))
         );
         assert_eq!(
             parse_request_line("GET /callback?error=access_denied HTTP/1.1"),
             Some(Callback::Error("access_denied".into()))
         );
-        assert!(matches!(parse_request_line("GET /callback HTTP/1.1"), Some(Callback::Error(_))));
+        assert!(matches!(
+            parse_request_line("GET /callback HTTP/1.1"),
+            Some(Callback::Error(_))
+        ));
         assert_eq!(parse_request_line("GET /favicon.ico HTTP/1.1"), None);
         assert_eq!(parse_request_line("POST /callback?code=x HTTP/1.1"), None);
         assert_eq!(parse_request_line("garbage"), None);
@@ -197,18 +223,25 @@ mod tests {
         let server = tokio::spawn(wait_for_callback(listener, Duration::from_secs(5)));
         // a stray request first
         let mut s = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-        s.write_all(b"GET /favicon.ico HTTP/1.1\r\nHost: x\r\n\r\n").await.unwrap();
+        s.write_all(b"GET /favicon.ico HTTP/1.1\r\nHost: x\r\n\r\n")
+            .await
+            .unwrap();
         let mut resp = String::new();
         s.read_to_string(&mut resp).await.unwrap();
         assert!(resp.starts_with("HTTP/1.1 404"));
         // the real redirect
         let mut s = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-        s.write_all(b"GET /callback?code=the-code HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n").await.unwrap();
+        s.write_all(b"GET /callback?code=the-code HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+            .await
+            .unwrap();
         let mut resp = String::new();
         s.read_to_string(&mut resp).await.unwrap();
         assert!(resp.starts_with("HTTP/1.1 200"));
         assert!(resp.contains("Puoi tornare a Rocket Sync"));
-        assert_eq!(server.await.unwrap().unwrap(), Callback::Code("the-code".into()));
+        assert_eq!(
+            server.await.unwrap().unwrap(),
+            Callback::Code("the-code".into())
+        );
     }
 
     #[tokio::test]
@@ -217,7 +250,9 @@ mod tests {
         let (l2, p2) = bind_loopback().await.unwrap();
         assert_ne!(p1, p2, "a busy port is skipped");
         assert_eq!(
-            wait_for_callback(l1, Duration::from_millis(50)).await.unwrap_err(),
+            wait_for_callback(l1, Duration::from_millis(50))
+                .await
+                .unwrap_err(),
             CallbackError::Timeout
         );
         drop(l2);

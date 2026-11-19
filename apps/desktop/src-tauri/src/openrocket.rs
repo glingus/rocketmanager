@@ -36,7 +36,10 @@ pub fn exe_from_command(cmd: &str) -> Option<PathBuf> {
 
 /// `OpenRocket 23.09` → `23.09`.
 pub fn version_from_display_name(name: &str) -> Option<String> {
-    let rest = name.trim().strip_prefix("OpenRocket").or_else(|| name.trim().strip_prefix("openrocket"))?;
+    let rest = name
+        .trim()
+        .strip_prefix("OpenRocket")
+        .or_else(|| name.trim().strip_prefix("openrocket"))?;
     let v = rest.trim().trim_start_matches(['v', 'V']).trim();
     if v.is_empty() || !v.chars().next().is_some_and(|c| c.is_ascii_digit()) {
         None
@@ -49,7 +52,12 @@ pub fn version_from_display_name(name: &str) -> Option<String> {
 pub fn program_files_candidates(roots: &[PathBuf]) -> Vec<PathBuf> {
     roots
         .iter()
-        .flat_map(|r| [r.join("OpenRocket").join("OpenRocket.exe"), r.join("OpenRocket").join("openrocket.exe")])
+        .flat_map(|r| {
+            [
+                r.join("OpenRocket").join("OpenRocket.exe"),
+                r.join("OpenRocket").join("openrocket.exe"),
+            ]
+        })
         .collect()
 }
 
@@ -90,9 +98,13 @@ fn detect_platform() -> OpenRocketInfo {
         (HKEY_LOCAL_MACHINE, uninstall),
         (HKEY_LOCAL_MACHINE, wow),
     ] {
-        let Ok(key) = RegKey::predef(hive).open_subkey(path) else { continue };
+        let Ok(key) = RegKey::predef(hive).open_subkey(path) else {
+            continue;
+        };
         for name in key.enum_keys().flatten() {
-            let Ok(sub) = key.open_subkey(&name) else { continue };
+            let Ok(sub) = key.open_subkey(&name) else {
+                continue;
+            };
             let display: String = sub.get_value("DisplayName").unwrap_or_default();
             if !display.to_lowercase().contains("openrocket") {
                 continue;
@@ -120,10 +132,17 @@ fn detect_platform() -> OpenRocketInfo {
     for v in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
         if let Some(p) = std::env::var_os(v) {
             let p = PathBuf::from(p);
-            roots.push(if v == "LOCALAPPDATA" { p.join("Programs") } else { p });
+            roots.push(if v == "LOCALAPPDATA" {
+                p.join("Programs")
+            } else {
+                p
+            });
         }
     }
-    if let Some(p) = program_files_candidates(&roots).into_iter().find(|p| p.is_file()) {
+    if let Some(p) = program_files_candidates(&roots)
+        .into_iter()
+        .find(|p| p.is_file())
+    {
         return info_for(p, None);
     }
     // 3. association of .ork
@@ -134,7 +153,8 @@ fn detect_platform() -> OpenRocketInfo {
             if let Ok(cmd) = classes.open_subkey(format!(r"{progid}\shell\open\command")) {
                 let line: String = cmd.get_value("").unwrap_or_default();
                 if let Some(exe) = exe_from_command(&line) {
-                    if exe.is_file() && exe.to_string_lossy().to_lowercase().contains("openrocket") {
+                    if exe.is_file() && exe.to_string_lossy().to_lowercase().contains("openrocket")
+                    {
                         return info_for(exe, None);
                     }
                 }
@@ -174,8 +194,14 @@ mod tests {
 
     #[test]
     fn parses_versions() {
-        assert_eq!(version_from_display_name("OpenRocket 23.09").as_deref(), Some("23.09"));
-        assert_eq!(version_from_display_name("OpenRocket v15.03 (64-bit)").as_deref(), Some("15.03"));
+        assert_eq!(
+            version_from_display_name("OpenRocket 23.09").as_deref(),
+            Some("23.09")
+        );
+        assert_eq!(
+            version_from_display_name("OpenRocket v15.03 (64-bit)").as_deref(),
+            Some("15.03")
+        );
         assert_eq!(version_from_display_name("OpenRocket"), None);
         assert_eq!(version_from_display_name("Altro 1.0"), None);
     }

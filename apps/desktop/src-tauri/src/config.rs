@@ -38,11 +38,21 @@ impl AppConfig {
     /// Values captured when the binary was built.
     pub fn from_build() -> Self {
         Self {
-            supabase_url: option_env!("ROCKETSYNC_SUPABASE_URL").unwrap_or("").to_string(),
-            supabase_anon_key: option_env!("ROCKETSYNC_SUPABASE_ANON_KEY").unwrap_or("").to_string(),
-            github_org: option_env!("ROCKETSYNC_GITHUB_ORG").unwrap_or("").to_string(),
-            updater_endpoint: option_env!("ROCKETSYNC_UPDATER_ENDPOINT").unwrap_or("").to_string(),
-            updater_pubkey: option_env!("ROCKETSYNC_UPDATER_PUBKEY").unwrap_or("").to_string(),
+            supabase_url: option_env!("ROCKETSYNC_SUPABASE_URL")
+                .unwrap_or("")
+                .to_string(),
+            supabase_anon_key: option_env!("ROCKETSYNC_SUPABASE_ANON_KEY")
+                .unwrap_or("")
+                .to_string(),
+            github_org: option_env!("ROCKETSYNC_GITHUB_ORG")
+                .unwrap_or("")
+                .to_string(),
+            updater_endpoint: option_env!("ROCKETSYNC_UPDATER_ENDPOINT")
+                .unwrap_or("")
+                .to_string(),
+            updater_pubkey: option_env!("ROCKETSYNC_UPDATER_PUBKEY")
+                .unwrap_or("")
+                .to_string(),
         }
     }
 
@@ -76,7 +86,9 @@ impl AppConfig {
                 Ok(c) => (c, None),
                 Err(e) => (
                     base,
-                    Some(format!("config.json non valido ({e}): uso la configurazione di compilazione")),
+                    Some(format!(
+                        "config.json non valido ({e}): uso la configurazione di compilazione"
+                    )),
                 ),
             },
             Err(_) => (base.with_overrides("{}").unwrap_or_default(), None),

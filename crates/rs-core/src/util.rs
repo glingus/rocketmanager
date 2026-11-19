@@ -21,13 +21,17 @@ pub(crate) fn is_rocket_temp(path: &str) -> bool {
 /// * `deleted = false`: only an `ORSave*.tmp` modified in the last 10 s (a tmp left behind by a
 ///   crash must not block the folder for ever).
 pub(crate) fn save_in_progress(abs: &Path, deleted: bool) -> bool {
-    let Some(dir) = abs.parent() else { return false };
+    let Some(dir) = abs.parent() else {
+        return false;
+    };
     let name = abs
         .file_name()
         .map(|n| n.to_string_lossy().to_lowercase())
         .unwrap_or_default();
     let bak = format!("{name}-bak");
-    let Ok(rd) = fs::read_dir(dir) else { return false };
+    let Ok(rd) = fs::read_dir(dir) else {
+        return false;
+    };
     rd.flatten().any(|e| {
         let n = e.file_name().to_string_lossy().to_lowercase();
         if deleted && n == bak {
@@ -303,16 +307,26 @@ mod tests {
         assert!(!save_in_progress(&f, true));
         fs::write(d.path().join("Razzo.ork-bak"), b"x").unwrap();
         assert!(save_in_progress(&f, true), "absent file with a backup");
-        assert!(!save_in_progress(&f, false), "existing file: a backup alone does not matter");
+        assert!(
+            !save_in_progress(&f, false),
+            "existing file: a backup alone does not matter"
+        );
         assert!(!save_in_progress(&d.path().join("Altro.ork"), true));
         fs::remove_file(d.path().join("Razzo.ork-bak")).unwrap();
         let tmp = d.path().join("ORSave42.tmp");
         fs::write(&tmp, b"x").unwrap();
         assert!(save_in_progress(&f, false));
         let old = fs::OpenOptions::new().write(true).open(&tmp).unwrap();
-        old.set_modified(SystemTime::now() - Duration::from_secs(120)).unwrap();
-        assert!(!save_in_progress(&f, false), "an old leftover does not block existing files");
-        assert!(save_in_progress(&f, true), "...but still protects a deletion");
+        old.set_modified(SystemTime::now() - Duration::from_secs(120))
+            .unwrap();
+        assert!(
+            !save_in_progress(&f, false),
+            "an old leftover does not block existing files"
+        );
+        assert!(
+            save_in_progress(&f, true),
+            "...but still protects a deletion"
+        );
     }
 
     #[test]

@@ -1,5 +1,7 @@
+mod app;
 pub mod askpass;
 pub mod auth;
+pub mod commands;
 pub mod config;
 pub mod diagnostics;
 pub mod enrich;
@@ -12,8 +14,6 @@ pub mod secrets;
 pub mod selftest;
 pub mod settings;
 pub mod shell;
-mod app;
-pub mod commands;
 
 pub use app::run;
 
@@ -26,7 +26,11 @@ mod consistency {
         let s = text.split_once(start).unwrap().1;
         let s = s.split_once(end).unwrap().0;
         s.lines()
-            .filter_map(|l| l.trim().strip_prefix(prefix).and_then(|r| r.strip_suffix(suffix)))
+            .filter_map(|l| {
+                l.trim()
+                    .strip_prefix(prefix)
+                    .and_then(|r| r.strip_suffix(suffix))
+            })
             .map(str::to_string)
             .collect()
     }
@@ -41,7 +45,8 @@ mod consistency {
         let from_handler = names_in(app, "generate_handler![", "])", "commands::", ",");
         assert_eq!(from_build, from_handler);
 
-        let cap: serde_json::Value = serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let cap: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
         let granted: Vec<String> = cap["permissions"]
             .as_array()
             .unwrap()
@@ -59,7 +64,10 @@ mod consistency {
             .filter_map(|p| p.as_str())
             .filter(|p| !p.starts_with("allow-"))
             .collect();
-        assert_eq!(others, vec!["core:event:allow-listen", "core:event:allow-unlisten"]);
+        assert_eq!(
+            others,
+            vec!["core:event:allow-listen", "core:event:allow-unlisten"]
+        );
     }
 
     #[test]
@@ -84,7 +92,10 @@ mod consistency {
             assert!(have.contains(c), "contract command {c} is not implemented");
         }
         for h in &have {
-            assert!(in_contract.contains(h), "command {h} is not in the contract");
+            assert!(
+                in_contract.contains(h),
+                "command {h} is not in the contract"
+            );
         }
     }
 }

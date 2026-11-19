@@ -33,15 +33,27 @@ impl FileInspector for ShellInspector {
 const MAX_TEXT_DIFF: usize = 1024 * 1024;
 
 /// Unified diff of two texts (`None` if they are not UTF-8 or too big).
-pub fn unified_text_diff(path: &str, before: Option<&[u8]>, after: Option<&[u8]>) -> Option<String> {
+pub fn unified_text_diff(
+    path: &str,
+    before: Option<&[u8]>,
+    after: Option<&[u8]>,
+) -> Option<String> {
     let b = before.unwrap_or(&[]);
     let a = after.unwrap_or(&[]);
     if b.len() > MAX_TEXT_DIFF || a.len() > MAX_TEXT_DIFF {
         return None;
     }
     let (b, a) = (std::str::from_utf8(b).ok()?, std::str::from_utf8(a).ok()?);
-    let old_name = if before.is_some() { format!("a/{path}") } else { "/dev/null".to_string() };
-    let new_name = if after.is_some() { format!("b/{path}") } else { "/dev/null".to_string() };
+    let old_name = if before.is_some() {
+        format!("a/{path}")
+    } else {
+        "/dev/null".to_string()
+    };
+    let new_name = if after.is_some() {
+        format!("b/{path}")
+    } else {
+        "/dev/null".to_string()
+    };
     Some(
         TextDiff::from_lines(b, a)
             .unified_diff()
@@ -68,7 +80,10 @@ pub fn enrich_comparison(c: &mut Comparison) {
 }
 
 /// Adds `threeWay` to the `.ork` files of a conflict whose three sides all exist.
-pub fn enrich_conflict_with(c: &mut Conflict, mut read: impl FnMut(&str, rs_core::ConflictSide) -> Option<Vec<u8>>) {
+pub fn enrich_conflict_with(
+    c: &mut Conflict,
+    mut read: impl FnMut(&str, rs_core::ConflictSide) -> Option<Vec<u8>>,
+) {
     for f in &mut c.files {
         if !is_ork(&f.path) {
             continue;
@@ -85,7 +100,9 @@ pub fn enrich_conflict_with(c: &mut Conflict, mut read: impl FnMut(&str, rs_core
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rs_core::{ConflictFile, ConflictFileKind, ConflictStatusDto, FileChange, FileComparison, VersionRef};
+    use rs_core::{
+        ConflictFile, ConflictFileKind, ConflictStatusDto, FileChange, FileComparison, VersionRef,
+    };
 
     fn fc(path: &str, binary: bool, before: Option<&[u8]>, after: Option<&[u8]>) -> FileComparison {
         FileComparison {
@@ -108,30 +125,61 @@ mod tests {
     #[test]
     fn text_files_get_a_unified_diff_and_binaries_do_not() {
         let mut c = Comparison {
-            from: VersionRef { number: Some(1), sha: "a".into() },
-            to: VersionRef { number: Some(2), sha: "b".into() },
+            from: VersionRef {
+                number: Some(1),
+                sha: "a".into(),
+            },
+            to: VersionRef {
+                number: Some(2),
+                sha: "b".into(),
+            },
             files: vec![
-                fc("Note.txt", false, Some(b"uno\ndue\n"), Some(b"uno\ndue modificato\ntre\n")),
+                fc(
+                    "Note.txt",
+                    false,
+                    Some(b"uno\ndue\n"),
+                    Some(b"uno\ndue modificato\ntre\n"),
+                ),
                 fc("img.png", true, Some(&[0, 1]), Some(&[0, 2])),
                 fc("Nuovo.md", false, None, Some(b"# titolo\n")),
-                fc("Binario.dat", false, Some(&[0xff, 0xfe, 0x00]), Some(&[0xff])),
+                fc(
+                    "Binario.dat",
+                    false,
+                    Some(&[0xff, 0xfe, 0x00]),
+                    Some(&[0xff]),
+                ),
             ],
         };
         enrich_comparison(&mut c);
         let d = c.files[0].text_diff.as_deref().unwrap();
-        assert!(d.contains("--- a/Note.txt") && d.contains("+++ b/Note.txt"), "{d}");
-        assert!(d.contains("-due\n") && d.contains("+due modificato\n") && d.contains("+tre\n"), "{d}");
+        assert!(
+            d.contains("--- a/Note.txt") && d.contains("+++ b/Note.txt"),
+            "{d}"
+        );
+        assert!(
+            d.contains("-due\n") && d.contains("+due modificato\n") && d.contains("+tre\n"),
+            "{d}"
+        );
         assert!(c.files[1].text_diff.is_none());
         let n = c.files[2].text_diff.as_deref().unwrap();
-        assert!(n.contains("--- /dev/null") && n.contains("+# titolo"), "{n}");
+        assert!(
+            n.contains("--- /dev/null") && n.contains("+# titolo"),
+            "{n}"
+        );
         assert!(c.files[3].text_diff.is_none(), "not UTF-8");
     }
 
     #[test]
     fn unreadable_ork_gets_a_parse_error_not_a_panic() {
         let mut c = Comparison {
-            from: VersionRef { number: None, sha: "a".into() },
-            to: VersionRef { number: None, sha: "b".into() },
+            from: VersionRef {
+                number: None,
+                sha: "a".into(),
+            },
+            to: VersionRef {
+                number: None,
+                sha: "b".into(),
+            },
             files: vec![fc("Razzo.ork", true, Some(b"not a zip"), Some(b"neither"))],
         };
         enrich_comparison(&mut c);
@@ -158,9 +206,21 @@ mod tests {
             theirs_author: None,
             remote_branch_pushed: true,
             files: vec![
-                ConflictFile { path: "A.ork".into(), kind: ConflictFileKind::BothModified, three_way: None },
-                ConflictFile { path: "B.ork".into(), kind: ConflictFileKind::BothAdded, three_way: None },
-                ConflictFile { path: "t.txt".into(), kind: ConflictFileKind::BothModified, three_way: None },
+                ConflictFile {
+                    path: "A.ork".into(),
+                    kind: ConflictFileKind::BothModified,
+                    three_way: None,
+                },
+                ConflictFile {
+                    path: "B.ork".into(),
+                    kind: ConflictFileKind::BothAdded,
+                    three_way: None,
+                },
+                ConflictFile {
+                    path: "t.txt".into(),
+                    kind: ConflictFileKind::BothModified,
+                    three_way: None,
+                },
             ],
         };
         enrich_conflict_with(&mut c, |path, side| match (path, side) {
@@ -172,7 +232,10 @@ mod tests {
         let tw = c.files[0].three_way.as_ref().expect("filled");
         assert_eq!(tw["path"], "A.ork");
         assert_eq!(tw["independent"], false);
-        assert!(c.files[1].three_way.is_none(), "no base: nothing to compare");
+        assert!(
+            c.files[1].three_way.is_none(),
+            "no base: nothing to compare"
+        );
         assert!(c.files[2].three_way.is_none(), "not an .ork");
     }
 

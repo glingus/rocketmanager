@@ -54,7 +54,10 @@ fn split_chunks(value: &str) -> Vec<String> {
     if chars.is_empty() {
         return vec![String::new()];
     }
-    chars.chunks(CHUNK_CHARS).map(|c| c.iter().collect()).collect()
+    chars
+        .chunks(CHUNK_CHARS)
+        .map(|c| c.iter().collect())
+        .collect()
 }
 
 impl<R: RawEntries> SecretStore for Chunked<R> {
@@ -78,7 +81,8 @@ impl<R: RawEntries> SecretStore for Chunked<R> {
         for (i, c) in chunks.iter().enumerate() {
             self.raw.write(&format!("{key}#{i}"), c)?;
         }
-        self.raw.write(&format!("{key}#n"), &chunks.len().to_string())?;
+        self.raw
+            .write(&format!("{key}#n"), &chunks.len().to_string())?;
         for i in chunks.len()..old {
             self.raw.remove(&format!("{key}#{i}"))?;
         }
@@ -149,14 +153,24 @@ fn process_map() -> &'static Mutex<HashMap<String, String>> {
 #[cfg(not(any(windows, target_os = "macos")))]
 impl RawEntries for ProcessRaw {
     fn read(&self, name: &str) -> Result<Option<String>, SecretError> {
-        Ok(process_map().lock().map_err(|_| SecretError("lock".into()))?.get(name).cloned())
+        Ok(process_map()
+            .lock()
+            .map_err(|_| SecretError("lock".into()))?
+            .get(name)
+            .cloned())
     }
     fn write(&self, name: &str, value: &str) -> Result<(), SecretError> {
-        process_map().lock().map_err(|_| SecretError("lock".into()))?.insert(name.to_string(), value.to_string());
+        process_map()
+            .lock()
+            .map_err(|_| SecretError("lock".into()))?
+            .insert(name.to_string(), value.to_string());
         Ok(())
     }
     fn remove(&self, name: &str) -> Result<(), SecretError> {
-        process_map().lock().map_err(|_| SecretError("lock".into()))?.remove(name);
+        process_map()
+            .lock()
+            .map_err(|_| SecretError("lock".into()))?
+            .remove(name);
         Ok(())
     }
 }
@@ -195,7 +209,11 @@ impl MemoryRaw {
         }
     }
     pub fn names(&self) -> Vec<String> {
-        let mut v: Vec<String> = self.map.lock().map(|m| m.keys().cloned().collect()).unwrap_or_default();
+        let mut v: Vec<String> = self
+            .map
+            .lock()
+            .map(|m| m.keys().cloned().collect())
+            .unwrap_or_default();
         v.sort();
         v
     }
@@ -203,12 +221,20 @@ impl MemoryRaw {
 
 impl RawEntries for MemoryRaw {
     fn read(&self, name: &str) -> Result<Option<String>, SecretError> {
-        Ok(self.map.lock().map_err(|_| SecretError("lock".into()))?.get(name).cloned())
+        Ok(self
+            .map
+            .lock()
+            .map_err(|_| SecretError("lock".into()))?
+            .get(name)
+            .cloned())
     }
     fn write(&self, name: &str, value: &str) -> Result<(), SecretError> {
         if let Some(l) = self.limit {
             if value.chars().count() > l {
-                return Err(SecretError(format!("valore di {} caratteri oltre il limite {l}", value.chars().count())));
+                return Err(SecretError(format!(
+                    "valore di {} caratteri oltre il limite {l}",
+                    value.chars().count()
+                )));
             }
         }
         self.map
@@ -218,7 +244,10 @@ impl RawEntries for MemoryRaw {
         Ok(())
     }
     fn remove(&self, name: &str) -> Result<(), SecretError> {
-        self.map.lock().map_err(|_| SecretError("lock".into()))?.remove(name);
+        self.map
+            .lock()
+            .map_err(|_| SecretError("lock".into()))?
+            .remove(name);
         Ok(())
     }
 }
@@ -235,13 +264,21 @@ mod tests {
     #[test]
     fn long_values_are_chunked_and_roundtrip() {
         let s = memory_store();
-        let big: String = (0..5000).map(|i| char::from(b'a' + (i % 26) as u8)).collect();
+        let big: String = (0..5000)
+            .map(|i| char::from(b'a' + (i % 26) as u8))
+            .collect();
         s.set("auth.session", &big).unwrap();
-        assert_eq!(s.get("auth.session").unwrap().as_deref(), Some(big.as_str()));
+        assert_eq!(
+            s.get("auth.session").unwrap().as_deref(),
+            Some(big.as_str())
+        );
         // shrinking removes the unused chunks
         s.set("auth.session", "corto").unwrap();
         assert_eq!(s.get("auth.session").unwrap().as_deref(), Some("corto"));
-        assert_eq!(s.raw.names(), vec!["auth.session#0".to_string(), "auth.session#n".to_string()]);
+        assert_eq!(
+            s.raw.names(),
+            vec!["auth.session#0".to_string(), "auth.session#n".to_string()]
+        );
         s.delete("auth.session").unwrap();
         assert_eq!(s.get("auth.session").unwrap(), None);
         assert!(s.raw.names().is_empty());

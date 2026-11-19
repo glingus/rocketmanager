@@ -46,6 +46,7 @@ const COMMANDS: &[&str] = &[
 fn main() {
     // Only the commands of the IPC contract can be invoked by the interface: each one gets an
     // `allow-<name>` permission that capabilities/default.json grants explicitly.
-    let attrs = tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMMANDS));
+    let attrs = tauri_build::Attributes::new()
+        .app_manifest(tauri_build::AppManifest::new().commands(COMMANDS));
     tauri_build::try_build(attrs).expect("failed to run tauri-build");
 }

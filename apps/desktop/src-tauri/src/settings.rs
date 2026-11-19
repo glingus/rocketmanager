@@ -30,7 +30,9 @@ pub const MAX_FETCH_SECONDS: u32 = 3600;
 impl AppSettings {
     /// Clamps values to what the engine supports.
     pub fn normalized(mut self) -> Self {
-        self.fetch_interval_seconds = self.fetch_interval_seconds.clamp(MIN_FETCH_SECONDS, MAX_FETCH_SECONDS);
+        self.fetch_interval_seconds = self
+            .fetch_interval_seconds
+            .clamp(MIN_FETCH_SECONDS, MAX_FETCH_SECONDS);
         self
     }
 
@@ -56,7 +58,12 @@ mod tests {
     fn defaults_roundtrip_and_clamping() {
         let s = Store::open_in_memory().unwrap();
         assert_eq!(AppSettings::load(&s), AppSettings::default());
-        let custom = AppSettings { autostart: true, desktop_notifications: false, minimize_to_tray: false, fetch_interval_seconds: 5 };
+        let custom = AppSettings {
+            autostart: true,
+            desktop_notifications: false,
+            minimize_to_tray: false,
+            fetch_interval_seconds: 5,
+        };
         custom.save(&s).unwrap();
         let back = AppSettings::load(&s);
         assert!(back.autostart && !back.desktop_notifications && !back.minimize_to_tray);

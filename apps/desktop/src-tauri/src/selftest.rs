@@ -33,7 +33,8 @@ pub struct SelfTestInputs<'a> {
 fn probe_data_dir(dir: &Path) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("cartella dati {}: {e}", dir.display()))?;
     let probe = dir.join(format!(".selftest-{}", std::process::id()));
-    std::fs::write(&probe, b"ok").map_err(|e| format!("cartella dati {} non scrivibile: {e}", dir.display()))?;
+    std::fs::write(&probe, b"ok")
+        .map_err(|e| format!("cartella dati {} non scrivibile: {e}", dir.display()))?;
     let back = std::fs::read(&probe).map_err(|e| format!("cartella dati non leggibile: {e}"))?;
     let _ = std::fs::remove_file(&probe);
     if back == b"ok" {
@@ -136,7 +137,9 @@ pub fn webview2_version() -> Option<String> {
 /// `["--self-test", "<file>"]` → the output path.
 pub fn parse_args(args: &[String]) -> Option<PathBuf> {
     let i = args.iter().position(|a| a == "--self-test")?;
-    args.get(i + 1).filter(|p| !p.starts_with("--")).map(PathBuf::from)
+    args.get(i + 1)
+        .filter(|p| !p.starts_with("--"))
+        .map(PathBuf::from)
 }
 
 /// Handles the command line: `Some(exit code)` if it was a self-test request.
@@ -193,7 +196,17 @@ mod tests {
         assert!(r.git_version.is_some());
         assert!(r.errors.is_empty());
         let j = serde_json::to_value(&r).unwrap();
-        for k in ["ok", "appVersion", "gitPath", "gitVersion", "webview2Version", "configOk", "dataDirWritable", "credentialStoreOk", "errors"] {
+        for k in [
+            "ok",
+            "appVersion",
+            "gitPath",
+            "gitVersion",
+            "webview2Version",
+            "configOk",
+            "dataDirWritable",
+            "credentialStoreOk",
+            "errors",
+        ] {
             assert!(j.get(k).is_some(), "missing {k}");
         }
         assert_eq!(j["appVersion"], "1.2.3");
@@ -211,9 +224,15 @@ mod tests {
         // credential store that refuses everything
         struct Broken;
         impl SecretStore for Broken {
-            fn get(&self, _: &str) -> Result<Option<String>, SecretError> { Err(SecretError("rotto".into())) }
-            fn set(&self, _: &str, _: &str) -> Result<(), SecretError> { Err(SecretError("rotto".into())) }
-            fn delete(&self, _: &str) -> Result<(), SecretError> { Ok(()) }
+            fn get(&self, _: &str) -> Result<Option<String>, SecretError> {
+                Err(SecretError("rotto".into()))
+            }
+            fn set(&self, _: &str, _: &str) -> Result<(), SecretError> {
+                Err(SecretError("rotto".into()))
+            }
+            fn delete(&self, _: &str) -> Result<(), SecretError> {
+                Ok(())
+            }
         }
         let r = run(&SelfTestInputs {
             app_version: "1".into(),
@@ -225,7 +244,7 @@ mod tests {
         assert!(!r.ok);
         assert!(!r.data_dir_writable && !r.config_ok && !r.credential_store_ok);
         assert!(r.git_version.is_none());
-        assert_eq!(r.errors.len(), 3 + 0, "{:#?}", r.errors);
+        assert_eq!(r.errors.len(), 3, "{:#?}", r.errors);
         assert_eq!(r.webview2_version.as_deref(), Some("120.0"));
     }
 
@@ -249,9 +268,15 @@ mod tests {
     fn credential_store_that_loses_values_is_detected() {
         struct Forgetful(Arc<crate::secrets::MemoryRaw>);
         impl SecretStore for Forgetful {
-            fn get(&self, _: &str) -> Result<Option<String>, SecretError> { Ok(None) }
-            fn set(&self, k: &str, v: &str) -> Result<(), SecretError> { self.0.write(k, v) }
-            fn delete(&self, _: &str) -> Result<(), SecretError> { Ok(()) }
+            fn get(&self, _: &str) -> Result<Option<String>, SecretError> {
+                Ok(None)
+            }
+            fn set(&self, k: &str, v: &str) -> Result<(), SecretError> {
+                self.0.write(k, v)
+            }
+            fn delete(&self, _: &str) -> Result<(), SecretError> {
+                Ok(())
+            }
         }
         let d = tempfile::tempdir().unwrap();
         let r = run(&SelfTestInputs {
@@ -267,8 +292,14 @@ mod tests {
     #[test]
     fn command_line_parsing_and_exit_codes() {
         let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        assert_eq!(parse_args(&a(&["--self-test", "out.json"])), Some(PathBuf::from("out.json")));
-        assert_eq!(parse_args(&a(&["--minimized", "--self-test", "x.json"])), Some(PathBuf::from("x.json")));
+        assert_eq!(
+            parse_args(&a(&["--self-test", "out.json"])),
+            Some(PathBuf::from("out.json"))
+        );
+        assert_eq!(
+            parse_args(&a(&["--minimized", "--self-test", "x.json"])),
+            Some(PathBuf::from("x.json"))
+        );
         assert_eq!(parse_args(&a(&["--self-test"])), None);
         assert_eq!(parse_args(&a(&["--self-test", "--other"])), None);
         assert_eq!(handle_cli(&a(&["--minimized"])), None);
@@ -280,7 +311,11 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let out = d.path().join("sub/report.json");
         std::env::set_var("ROCKETSYNC_DATA_DIR", d.path().join("data"));
-        let code = handle_cli(&["--self-test".to_string(), out.to_string_lossy().into_owned()]).unwrap();
+        let code = handle_cli(&[
+            "--self-test".to_string(),
+            out.to_string_lossy().into_owned(),
+        ])
+        .unwrap();
         std::env::remove_var("ROCKETSYNC_DATA_DIR");
         let v: serde_json::Value = serde_json::from_slice(&std::fs::read(&out).unwrap()).unwrap();
         assert_eq!(v["ok"].as_bool().unwrap(), code == 0, "{v}");
