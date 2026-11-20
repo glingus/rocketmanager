@@ -44,6 +44,18 @@ const cliEnv = () => {
 };
 const tauri = (...args) => spawnSync(TAURI, args, { encoding: 'utf8', env: cliEnv() });
 
+// ---- le fixture devono poter finire nel repository ----------------------------------------------------
+
+test('nessuna fixture è ignorata da .gitignore (il .gitignore radice ignora *.key: la cartella lo annulla)', (t) => {
+  const git = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: here, encoding: 'utf8' });
+  if (git.status !== 0) return t.skip('non è un repository git');
+  for (const name of ['official.key', 'official.key.pub', 'script.key', 'script.key.pub', 'sample.txt', 'sample.txt.official.sig', 'sample.txt.script.sig']) {
+    assert.ok(existsSync(join(here, 'fixtures', name)), `manca la fixture ${name}`);
+    const r = spawnSync('git', ['check-ignore', '-q', '--no-index', join('fixtures', name)], { cwd: here });
+    assert.equal(r.status, 1, `${name} è ignorata da .gitignore: in CI mancherebbe`);
+  }
+});
+
 // ---- BLAKE2b ----------------------------------------------------------------------------------------
 
 test('BLAKE2b-512 coincide con quello di OpenSSL (Node) per molte lunghezze', () => {

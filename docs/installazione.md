@@ -215,7 +215,7 @@ restare privato, in un repo diverso). Un repository privato non permette il down
    | Tipo | Nome | Valore |
    |---|---|---|
    | Variabile | `RELEASES_REPO` | `proprietario/nome` del repository delle release |
-   | Variabile | `UPDATER_PUBKEY` | contenuto del file `.key.pub` (la chiave **pubblica**, su una riga) |
+   | Variabile | `UPDATER_PUBKEY` | contenuto del file `.key.pub` (la chiave **pubblica**, su una riga; inizia con `dW50cnVzdGVk`). **Non** è la chiave di Supabase |
    | Variabile | `SUPABASE_URL` | indirizzo del progetto Supabase, `https://<ref>.supabase.co`, senza `/` finale (Supabase → *Project Settings → API* → *Project URL*) |
    | Variabile | `SUPABASE_ANON_KEY` | chiave pubblica `anon` (Supabase → *Project Settings → API* → *Project API keys*). È pubblica **per design**: la sicurezza sta nelle policy RLS; la chiave `service_role` **non** va mai messa qui |
    | Variabile | `PROJECTS_ORG` | nome dell'organizzazione GitHub che ospita i repository dei progetti (quella dove è installata la GitHub App) |
@@ -224,7 +224,12 @@ restare privato, in un repo diverso). Un repository privato non permette il down
    | Segreto | `RELEASES_TOKEN` | il token del passo 3 |
 
    Nessun segreto sta nei file del repository; il workflow si ferma subito, con un messaggio chiaro,
-   se una di queste voci manca.
+   se una di queste voci manca **o ha un valore sbagliato** (`scripts/validate-release-config.mjs`, senza
+   mai stampare i valori): `UPDATER_PUBKEY` deve decodificarsi in una chiave pubblica minisign (non una
+   chiave `sb_publishable_…`), `SUPABASE_ANON_KEY` deve iniziare con `eyJ` o `sb_publishable_` e non può
+   avere spazi, a-capo, virgolette o un `\` iniziale né essere la chiave `service_role`/`sb_secret_`.
+   Nelle variabili il valore va incollato nudo: il log di GitHub mostra `\***` quando il valore comincia
+   con un backslash.
 
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `PROJECTS_ORG`, l'endpoint dell'updater (ricavato da
    `RELEASES_REPO`) e `UPDATER_PUBKEY` vengono **incorporati nell'app in fase di compilazione** come
