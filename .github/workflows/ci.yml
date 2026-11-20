@@ -3,6 +3,8 @@ name: CI
 on:
   push:
   pull_request:
+  # Avvio manuale (Actions → CI → Run workflow), utile dopo commit con [skip ci].
+  workflow_dispatch:
 
 # Permessi minimi: i job leggono solo il codice.
 permissions:
