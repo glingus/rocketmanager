@@ -33,6 +33,7 @@ const COMMANDS: &[&str] = &[
     "list_snapshots",
     "export_snapshot",
     "get_app_info",
+    "get_public_config",
     "open_in_openrocket",
     "open_folder",
     "get_app_settings",

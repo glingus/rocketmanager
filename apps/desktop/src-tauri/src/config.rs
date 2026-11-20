@@ -23,6 +23,16 @@ pub struct AppConfig {
     pub updater_pubkey: String,
 }
 
+/// `get_public_config` result: only what is public (the anon key is public by design; no secret
+/// and no updater key is ever included). Empty strings when not configured.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicConfig {
+    pub supabase_url: String,
+    pub supabase_anon_key: String,
+    pub github_org: String,
+}
+
 /// Same fields as [`AppConfig`], all optional: what `config.json` may override.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -107,6 +117,15 @@ impl AppConfig {
         Some((format!("https://{host}"), format!("wss://{host}")))
     }
 
+    /// The values the interface needs to talk to Supabase directly (all public by design).
+    pub fn public(&self) -> PublicConfig {
+        PublicConfig {
+            supabase_url: self.supabase_url.clone(),
+            supabase_anon_key: self.supabase_anon_key.clone(),
+            github_org: self.github_org.clone(),
+        }
+    }
+
     /// The configuration without the keys, for diagnostics.
     pub fn redacted(&self) -> serde_json::Value {
         serde_json::json!({
@@ -140,6 +159,26 @@ mod tests {
         assert!(c.auth_configured());
         assert_eq!(c.supabase_origins().unwrap().1, "wss://b.supabase.co");
         assert_eq!(c.redacted()["supabaseAnonKey"], "***");
+    }
+
+    #[test]
+    fn public_config_has_only_the_public_fields() {
+        let c = AppConfig {
+            supabase_url: "https://a.supabase.co".into(),
+            supabase_anon_key: "anon".into(),
+            github_org: "squadra".into(),
+            updater_endpoint: "https://u".into(),
+            updater_pubkey: "pk".into(),
+        };
+        let v = serde_json::to_value(c.public()).unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({"supabaseUrl": "https://a.supabase.co", "supabaseAnonKey": "anon", "githubOrg": "squadra"})
+        );
+        assert_eq!(
+            serde_json::to_value(AppConfig::default().public()).unwrap(),
+            serde_json::json!({"supabaseUrl": "", "supabaseAnonKey": "", "githubOrg": ""})
+        );
     }
 
     #[test]

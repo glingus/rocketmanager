@@ -42,6 +42,7 @@
     "allow-list-snapshots",
     "allow-export-snapshot",
     "allow-get-app-info",
+    "allow-get-public-config",
     "allow-open-in-openrocket",
     "allow-open-folder",
     "allow-get-app-settings",

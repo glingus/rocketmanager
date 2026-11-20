@@ -39,7 +39,7 @@ mod consistency {
     fn command_lists_agree() {
         let build = include_str!("../build.rs");
         let from_build = names_in(build, "COMMANDS: &[&str] = &[", "];", "\"", "\",");
-        assert_eq!(from_build.len(), 42, "{from_build:?}");
+        assert_eq!(from_build.len(), 43, "{from_build:?}");
 
         let app = include_str!("app.rs");
         let from_handler = names_in(app, "generate_handler![", "])", "commands::", ",");

@@ -399,6 +399,7 @@ pub fn run() {
             commands::list_snapshots,
             commands::export_snapshot,
             commands::get_app_info,
+            commands::get_public_config,
             commands::open_in_openrocket,
             commands::open_folder,
             commands::get_app_settings,

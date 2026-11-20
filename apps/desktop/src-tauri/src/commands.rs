@@ -68,6 +68,15 @@ fn not_ready() -> AppError {
 
 type St<'a> = State<'a, AppState>;
 
+/// Public configuration for the interface. Needs neither a sign-in nor a started engine: it
+/// reads the build-time values and `config.json` directly, so it works from the very first call.
+#[tauri::command]
+pub fn get_public_config() -> CmdResult<crate::config::PublicConfig> {
+    Ok(crate::config::AppConfig::load(&crate::paths::data_dir())
+        .0
+        .public())
+}
+
 #[tauri::command]
 pub async fn auth_status(state: St<'_>) -> CmdResult<AuthStatus> {
     let s = state.shell().await?;

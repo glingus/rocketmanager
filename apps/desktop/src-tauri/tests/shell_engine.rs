@@ -932,3 +932,25 @@ async fn quit_publish_failures_keep_the_app_open() {
         other => panic!("{other:?}"),
     }
 }
+
+#[test]
+fn public_config_command_reads_build_values_and_config_json_without_the_engine() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::write(
+        d.path().join("config.json"),
+        r#"{"supabaseUrl":"https://x.supabase.co/","supabaseAnonKey":"anon-123","githubOrg":"squadra","updaterPubkey":"SEGRETO-NO"}"#,
+    )
+    .unwrap();
+    std::env::set_var("ROCKETSYNC_DATA_DIR", d.path());
+    let r = rocket_sync_lib::commands::get_public_config();
+    std::env::remove_var("ROCKETSYNC_DATA_DIR");
+    let v = serde_json::to_value(r.unwrap()).unwrap();
+    assert_eq!(v["supabaseUrl"], "https://x.supabase.co");
+    assert_eq!(v["supabaseAnonKey"], "anon-123");
+    assert_eq!(v["githubOrg"], "squadra");
+    assert_eq!(
+        v.as_object().unwrap().len(),
+        3,
+        "nothing else is exposed: {v}"
+    );
+}
