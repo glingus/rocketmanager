@@ -34,34 +34,41 @@ jobs:
     name: Costruisci l'installer (Windows)
     runs-on: windows-latest
     timeout-minutes: 90
-    env:
-      RELEASES_REPO: ${{ vars.RELEASES_REPO }}
-      UPDATER_PUBKEY: ${{ vars.UPDATER_PUBKEY }}
-      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-      SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
-      PROJECTS_ORG: ${{ vars.PROJECTS_ORG }}
     steps:
       - uses: actions/checkout@v5
 
-      - name: Controlla la configurazione
+      # pnpm PRIMA di setup-node: setup-node (v5) attiva da solo la cache del gestore di pacchetti
+      # indicato in package.json ("packageManager": "pnpm@…") e senza pnpm installato fallisce.
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # I segreti non si possono leggere dagli script: qui si controlla solo che esistano.
+      - name: Controlla i segreti
         shell: pwsh
         env:
           HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
           HAS_TOKEN: ${{ secrets.RELEASES_TOKEN != '' }}
         run: |
           $errors = @()
-          if ([string]::IsNullOrWhiteSpace($env:RELEASES_REPO) -or $env:RELEASES_REPO -notmatch '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$') { $errors += 'La variabile RELEASES_REPO manca o non e'' nella forma proprietario/nome.' }
-          if ([string]::IsNullOrWhiteSpace($env:UPDATER_PUBKEY)) { $errors += 'La variabile UPDATER_PUBKEY (chiave pubblica dell''updater) manca.' }
-          if ([string]::IsNullOrWhiteSpace($env:SUPABASE_URL) -or $env:SUPABASE_URL.Trim() -notmatch '^https://[A-Za-z0-9.-]+$') { $errors += 'La variabile SUPABASE_URL manca o non e'' nella forma https://<ref>.supabase.co (senza / finale).' }
-          if ([string]::IsNullOrWhiteSpace($env:SUPABASE_ANON_KEY)) { $errors += 'La variabile SUPABASE_ANON_KEY (chiave pubblica anon di Supabase) manca.' }
-          if ([string]::IsNullOrWhiteSpace($env:PROJECTS_ORG) -or $env:PROJECTS_ORG.Trim() -notmatch '^[A-Za-z0-9][A-Za-z0-9-]*$') { $errors += 'La variabile PROJECTS_ORG (organizzazione GitHub dei progetti) manca o non e'' valida.' }
           if ($env:HAS_KEY -ne 'true') { $errors += 'Il segreto TAURI_SIGNING_PRIVATE_KEY manca.' }
           if ($env:HAS_TOKEN -ne 'true') { $errors += 'Il segreto RELEASES_TOKEN manca.' }
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
+      # Variabili: formato di UPDATER_PUBKEY (deve essere il contenuto del file .key.pub, non una chiave
+      # Supabase), SUPABASE_ANON_KEY (JWT anon o sb_publishable_, senza "\" né spazi), URL, organizzazione.
+      # Non stampa mai i valori.
+      - name: Controlla la configurazione
+        env:
+          RELEASES_REPO: ${{ vars.RELEASES_REPO }}
+          UPDATER_PUBKEY: ${{ vars.UPDATER_PUBKEY }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          PROJECTS_ORG: ${{ vars.PROJECTS_ORG }}
+        run: node scripts/validate-release-config.mjs
+
       - name: La versione coincide con il tag
         run: node scripts/check-release-version.mjs "$env:GITHUB_REF_NAME"
         shell: pwsh
@@ -72,11 +79,6 @@ jobs:
       - name: Test dei crate
         run: cargo test -p rs-git -p rs-store -p rs-core -p rs-ork
 
-      - uses: pnpm/action-setup@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: pnpm
       - run: pnpm install --frozen-lockfile
 
       - name: Scarica MinGit (incluso nell'app)
@@ -88,6 +90,12 @@ jobs:
 
       - name: Configurazione di rilascio (updater)
         shell: pwsh
+        env:
+          RELEASES_REPO: ${{ vars.RELEASES_REPO }}
+          UPDATER_PUBKEY: ${{ vars.UPDATER_PUBKEY }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          PROJECTS_ORG: ${{ vars.PROJECTS_ORG }}
         run: |
           $base = Get-Content -Raw installer/tauri.release.conf.json | ConvertFrom-Json
           $cfg = @{
@@ -164,6 +172,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false   # questo job non installa pnpm
       - uses: actions/download-artifact@v7
         with:
           name: release-files

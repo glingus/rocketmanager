@@ -1,0 +1,2 @@
+# Chiavi di SOLA PROVA (password nota nei test): vanno versionate nonostante *.key del .gitignore radice.
+!*.key

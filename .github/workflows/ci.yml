@@ -56,6 +56,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          package-manager-cache: false   # niente cache automatica di pnpm: pnpm viene installato più sotto
           cache-dependency-path: supabase/package-lock.json
       - name: Edge Functions (vitest, typecheck)
         working-directory: supabase
