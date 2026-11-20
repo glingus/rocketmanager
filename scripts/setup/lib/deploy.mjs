@@ -5,7 +5,7 @@
 
 import { readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix, win32 } from 'node:path';
 import { spawn } from 'node:child_process';
 import { REF_RE } from './args.mjs';
 import { SetupError } from './errors.mjs';
@@ -32,14 +32,30 @@ export async function listFunctions(repoRoot) {
     .sort();
 }
 
-export function buildDeployCommand({ ref, functions, platform = process.platform }) {
+/**
+ * Trova `npx-cli.js` accanto a Node, così la CLI parte con `node npx-cli.js …` senza shell
+ * (niente DEP0190 su Node 24, niente problemi di quoting con i .cmd di Windows).
+ * Windows: <cartella di node>\\node_modules\\npm\\bin; macOS/Linux: <prefisso>/lib/node_modules/npm/bin.
+ */
+export function findNpxCli({ platform = process.platform, execPath = process.execPath, exists = existsSync } = {}) {
+  const p = platform === 'win32' ? win32 : posix;
+  const dir = p.dirname(execPath);
+  const candidates = [
+    p.join(dir, 'node_modules', 'npm', 'bin', 'npx-cli.js'),
+    p.join(dir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npx-cli.js'),
+  ];
+  return candidates.find((c) => exists(c)) ?? null;
+}
+
+export function buildDeployCommand({ ref, functions, platform = process.platform, execPath = process.execPath, exists = existsSync }) {
   if (!REF_RE.test(ref)) throw new SetupError('Project ref non valido.', { code: 'args' });
   for (const f of functions) if (!/^[a-z0-9-]+$/.test(f)) throw new SetupError(`Nome di funzione non valido: ${f}`, { code: 'args' });
-  return {
-    cmd: platform === 'win32' ? 'npx.cmd' : 'npx',
-    args: ['--yes', `supabase@${SUPABASE_CLI_VERSION}`, 'functions', 'deploy', ...functions, '--project-ref', ref, '--use-api'],
-    shell: platform === 'win32', // i .cmd richiedono la shell su Windows; gli argomenti sono validati sopra
-  };
+  const cli = ['--yes', `supabase@${SUPABASE_CLI_VERSION}`, 'functions', 'deploy', ...functions, '--project-ref', ref, '--use-api'];
+  const npxCli = findNpxCli({ platform, execPath, exists });
+  // Via normale: Node stesso esegue npx-cli.js, senza shell.
+  if (npxCli) return { cmd: execPath, args: [npxCli, ...cli], shell: false };
+  // Ripiego (installazioni insolite di Node): npx dal PATH. Su Windows serve il .cmd e quindi la shell.
+  return { cmd: platform === 'win32' ? 'npx.cmd' : 'npx', args: cli, shell: platform === 'win32' };
 }
 
 /** Esecuzione reale: restituisce { code, stdout, stderr }. */

@@ -13,7 +13,7 @@ import { ENSURE_HISTORY_SQL, applyMigrations, buildMigrationSql, listMigrationFi
 import { vaultUpsertSql } from './lib/vault.mjs';
 import { LOOPBACK_PORTS, buildAuthPatch, loopbackUrls, mergeAllowList } from './lib/auth-config.mjs';
 import { APP_PERMISSIONS, appInstallUrl, appName, appSettingsUrl, buildManifest, convertManifest, manifestFormAction, startManifestServer } from './lib/github-app.mjs';
-import { EXPECTED_FUNCTIONS, SUPABASE_CLI_VERSION, buildDeployCommand, listFunctions } from './lib/deploy.mjs';
+import { EXPECTED_FUNCTIONS, SUPABASE_CLI_VERSION, buildDeployCommand, findNpxCli, listFunctions, runCommand } from './lib/deploy.mjs';
 import { defaultStateDir, loadState, saveState, sanitizeState, STATE_FILE } from './lib/state.mjs';
 import { VARIABLE_NAMES, offerGhVariables, publicValues } from './lib/summary.mjs';
 import { openCommand } from './lib/browser.mjs';
@@ -54,7 +54,7 @@ test('il manifest contiene esattamente ciò che chiede il piano', () => {
   assert.equal(m.hook_attributes.active, true);
   assert.equal(m.redirect_url, 'http://127.0.0.1:51234/creata');
   assert.deepEqual(m.callback_urls, [`https://${FAKE.ref}.supabase.co/auth/v1/callback`]);
-  assert.equal(m.request_oauth_on_install, true);
+  assert.equal(m.request_oauth_on_install, false);
   assert.equal(m.public, false);
   assert.deepEqual(m.default_permissions, { administration: 'write', contents: 'write', metadata: 'read', members: 'write' });
   assert.deepEqual(m.default_events, ['push']);
@@ -254,12 +254,23 @@ test('Edge Functions: CLI fissata, --project-ref e --use-api, le 7 funzioni pres
   const fns = await listFunctions(REPO_ROOT);
   assert.deepEqual(fns, [...EXPECTED_FUNCTIONS].sort());
   assert.equal(fns.length, 7);
-  const c = buildDeployCommand({ ref: FAKE.ref, functions: fns, platform: 'linux' });
-  assert.equal(c.cmd, 'npx');
+  const c = buildDeployCommand({ ref: FAKE.ref, functions: fns, platform: 'linux', execPath: '/opt/node/bin/node', exists: (f) => f === '/opt/node/lib/node_modules/npm/bin/npx-cli.js' });
+  assert.equal(c.cmd, '/opt/node/bin/node', 'Node stesso esegue npx-cli.js');
+  assert.equal(c.shell, false);
+  assert.equal(c.args[0], '/opt/node/lib/node_modules/npm/bin/npx-cli.js');
   assert.ok(c.args.includes(`supabase@${SUPABASE_CLI_VERSION}`));
   assert.ok(c.args.includes('--use-api'));
   assert.equal(c.args[c.args.indexOf('--project-ref') + 1], FAKE.ref);
-  assert.equal(buildDeployCommand({ ref: FAKE.ref, functions: fns, platform: 'win32' }).cmd, 'npx.cmd');
+  // Windows: npx-cli.js accanto a node.exe, nessuna shell (niente DEP0190)
+  const w = buildDeployCommand({ ref: FAKE.ref, functions: fns, platform: 'win32', execPath: 'C:\\Program Files\\nodejs\\node.exe', exists: (f) => f === 'C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js' });
+  assert.equal(w.cmd, 'C:\\Program Files\\nodejs\\node.exe');
+  assert.equal(w.shell, false);
+  assert.equal(w.args[0], 'C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js');
+  // ripiego se npx-cli.js non si trova
+  const f = buildDeployCommand({ ref: FAKE.ref, functions: fns, platform: 'win32', execPath: 'D:\\n\\node.exe', exists: () => false });
+  assert.equal(f.cmd, 'npx.cmd');
+  assert.equal(f.shell, true);
+  assert.equal(buildDeployCommand({ ref: FAKE.ref, functions: fns, platform: 'linux', execPath: '/x/node', exists: () => false }).cmd, 'npx');
   assert.throws(() => buildDeployCommand({ ref: 'x; rm -rf', functions: [] }), SetupError);
   assert.throws(() => buildDeployCommand({ ref: FAKE.ref, functions: ['a b'] }), SetupError);
 });
@@ -339,4 +350,13 @@ test('apertura del browser: comando per sistema operativo', () => {
   assert.equal(openCommand('http://x', 'win32').cmd, 'rundll32');
   assert.equal(openCommand('http://x', 'darwin').cmd, 'open');
   assert.equal(openCommand('http://x', 'linux').cmd, 'xdg-open');
+});
+
+test('Edge Functions: su questa macchina npx-cli.js si trova e parte davvero, senza shell e senza avvisi', async () => {
+  const cli = findNpxCli();
+  assert.ok(cli, 'npx-cli.js accanto a Node');
+  const r = await runCommand(process.execPath, [cli, '--version'], { env: { ...process.env, NO_UPDATE_NOTIFIER: '1' }, shell: false });
+  assert.equal(r.code, 0);
+  assert.match(r.stdout.trim(), /^\d+\.\d+\.\d+/);
+  assert.equal(/DEP0190|DeprecationWarning/.test(r.stderr), false);
 });

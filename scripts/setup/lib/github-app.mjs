@@ -35,7 +35,7 @@ export function buildManifest({ org, ref, port }) {
     hook_attributes: { url: `${supabaseUrl}/functions/v1/github-webhook`, active: true },
     redirect_url: `http://127.0.0.1:${port}/creata`,
     callback_urls: [`${supabaseUrl}/auth/v1/callback`],
-    request_oauth_on_install: true,
+    request_oauth_on_install: false, // il login avviene dall'app, non all'installazione (e niente setup_url)
     public: false,
     default_permissions: { ...APP_PERMISSIONS },
     default_events: ['push'],

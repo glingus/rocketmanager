@@ -136,6 +136,12 @@ Pagina: `https://github.com/apps/<nome-app>/installations/new`. Scegli la tua or
 poi **All repositories** (l'app deve poter agire sui repository che crea) e **Install**. Se GitHub
 chiede di autorizzare l'app mentre la installi, conferma.
 
+> Dopo l'installazione il browser può finire su una pagina d'errore tipo
+> `localhost:3000/?error=invalid_request&error_code=bad_oauth_callback&error_description=OAuth+state+parameter+missing`.
+> È **innocua**: l'app è installata comunque e puoi chiudere la scheda. L'accesso con GitHub
+> avviene dall'app, non durante l'installazione (per questo la richiesta di autorizzazione
+> all'installazione è disattivata).
+
 ## 7. Le variabili di GitHub Actions
 
 A fine esecuzione il configuratore stampa tre valori **pubblici**:

@@ -48,7 +48,7 @@ async function harness({ supa = {}, gh = {}, browser = {}, answers = [], runImpl
   };
   const runCalls = [];
   const run = async (cmd, a, o) => {
-    runCalls.push({ cmd, args: a, env: o?.env });
+    runCalls.push({ cmd, args: a, env: o?.env, shell: o?.shell });
     if (runImpl) return runImpl(cmd, a, o);
     if (cmd === 'gh') return { code: 127, stdout: '', stderr: 'gh: not found' };
     return { code: 0, stdout: 'Deployed', stderr: '' };
@@ -85,7 +85,7 @@ test('flusso completo: app, accesso, segreti, migrazioni, Vault, funzioni, riepi
     assert.equal(manifest.name, 'Rocket Sync mia-org');
     assert.equal(manifest.hook_attributes.url, `https://${FAKE.ref}.supabase.co/functions/v1/github-webhook`);
     assert.deepEqual(manifest.callback_urls, [`https://${FAKE.ref}.supabase.co/auth/v1/callback`]);
-    assert.equal(manifest.request_oauth_on_install, true);
+    assert.equal(manifest.request_oauth_on_install, false);
     assert.equal(manifest.public, false);
     assert.equal(h.seen.badStateStatus, 400, 'state errato rifiutato dal server locale');
     // 2. conversione eseguita una sola volta, con il codice giusto
@@ -110,7 +110,8 @@ test('flusso completo: app, accesso, segreti, migrazioni, Vault, funzioni, riepi
     assert.equal(vault.project_url, `https://${FAKE.ref}.supabase.co`);
     assert.equal(vault.service_role_key, FAKE.serviceRole);
     // 6. funzioni con la CLI fissata e il token solo nell'ambiente
-    const deploy = h.runCalls.find((c) => c.cmd === 'npx' || c.cmd === 'npx.cmd');
+    const deploy = h.runCalls.find((c) => c.args.includes('deploy'));
+    assert.equal(deploy.shell === true, false, 'nessuna shell');
     assert.ok(deploy.args.includes('--use-api'));
     assert.equal(deploy.args.includes(FAKE.token), false, 'il token non è tra gli argomenti');
     assert.equal(deploy.env.SUPABASE_ACCESS_TOKEN, FAKE.token);
@@ -221,7 +222,7 @@ test('--senza-deploy salta le Edge Functions', async () => {
   const h = await harness({ args: ['--senza-deploy'] });
   try {
     await h.run();
-    assert.equal(h.runCalls.some((c) => c.cmd.startsWith('npx')), false);
+    assert.equal(h.runCalls.some((c) => c.args.includes('deploy')), false);
   } finally {
     await h.close();
   }
