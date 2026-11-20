@@ -53,6 +53,7 @@ export const tauriBackend: Backend = {
   exportSnapshot: (args) => call('export_snapshot', args),
 
   getAppInfo: () => call('get_app_info'),
+  getPublicConfig: () => call('get_public_config'),
   openInOpenRocket: (args) => call('open_in_openrocket', args),
   openFolder: (path) => call('open_folder', { path }),
   getAppSettings: () => call('get_app_settings'),

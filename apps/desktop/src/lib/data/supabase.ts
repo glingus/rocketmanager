@@ -40,13 +40,6 @@ import {
 
 export type SupabaseConfig = { url: string; anonKey: string };
 
-export function readSupabaseConfig(): SupabaseConfig | null {
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return null;
-  return { url, anonKey };
-}
-
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (v == null ? '' : String(v));
 const strOrNull = (v: unknown): string | null => (v == null ? null : String(v));

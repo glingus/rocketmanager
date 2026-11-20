@@ -1,10 +1,6 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
 import './theme/global.css';
-import { App } from './app/App';
+import { startApp } from './app/startup/startApp';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// The app (and with it the backend and data layer, which use top-level await) is imported
+// dynamically: if starting fails, startApp shows a readable error screen instead of a blank window.
+void startApp(document.getElementById('root')!, { loadApp: () => import('./app/App') });

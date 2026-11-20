@@ -308,6 +308,7 @@ type FolderCheck = {
 | Comando | Argomenti | Risultato |
 |---|---|---|
 | `get_app_info` | — | `{ version, gitVersion, openRocket: { found, path, version } }` |
+| `get_public_config` | — | `{ supabaseUrl, supabaseAnonKey, githubOrg }` (stringhe, vuote se non configurate; valori di compilazione `ROCKETSYNC_*` e `config.json`; solo dati pubblici, nessun segreto; non richiede l'accesso) |
 | `open_in_openrocket` | `{ projectId, path }` | `void` |
 | `open_folder` | `{ path }` | `void` |
 | `get_app_settings` / `set_app_settings` | — / `{ settings }` | `AppSettings` / `void` |

@@ -124,11 +124,13 @@ describe('tauriBackend vs docs/contratto-ipc.md', () => {
     expect(args.get('publish')).toEqual(['projectId', 'title', 'description', 'paths']);
     expect(args.get('set_app_settings')).toEqual(['settings']);
     expect(args.get('get_app_settings')).toEqual([]);
+    expect(args.get('get_public_config')).toEqual([]);
     expect(args.get('answer_stale_save')).toEqual(['projectId', 'path', 'reopened']);
   });
 
   it('includes the latest contract additions', () => {
     expect(js.has('notify_remote_changed')).toBe(true);
+    expect(js.has('get_public_config')).toBe(true);
     expect(typesSource).toContain("'staleSavePending'");
   });
 });

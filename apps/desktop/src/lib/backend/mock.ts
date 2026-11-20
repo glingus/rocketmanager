@@ -1,4 +1,5 @@
 import type {
+  PublicConfig,
   AppInfo,
   AppSettings,
   AuthStatus,
@@ -262,6 +263,16 @@ export class MockBackend implements Backend {
       gitVersion: '2.47.1',
       openRocket: { found: true, path: 'C:\\Program Files\\OpenRocket\\OpenRocket.exe', version: '23.09' },
     };
+  }
+  /** What the shell would report. Tests set it; by default it mirrors the VITE_* variables (empty = not configured). */
+  publicConfig: PublicConfig = {
+    supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
+    supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+    githubOrg: '',
+  };
+  async getPublicConfig(): Promise<PublicConfig> {
+    await this.ready(10);
+    return { ...this.publicConfig };
   }
   async openInOpenRocket(args: { projectId: string; path: string }) {
     await this.ready();

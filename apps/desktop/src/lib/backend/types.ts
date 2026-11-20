@@ -10,6 +10,7 @@ import type {
   FileResolution,
   FolderCheck,
   LocalProject,
+  PublicConfig,
   ProjectStatus,
   PublishPolicy,
   Snapshot,
@@ -70,6 +71,8 @@ export interface Backend {
 
   // system
   getAppInfo(): Promise<AppInfo>;
+  /** URL and anon key of Supabase plus the GitHub organization, from the shell's single source of configuration. */
+  getPublicConfig(): Promise<PublicConfig>;
   openInOpenRocket(args: { projectId: string; path: string }): Promise<void>;
   openFolder(path: string): Promise<void>;
   getAppSettings(): Promise<AppSettings>;

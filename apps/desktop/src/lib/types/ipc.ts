@@ -260,6 +260,13 @@ export type AppInfo = {
   openRocket: { found: boolean; path: string | null; version: string | null };
 };
 
+/** Public configuration of the shell (build-time ROCKETSYNC_* values + config.json). Empty strings when not set. */
+export type PublicConfig = {
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  githubOrg: string;
+};
+
 export type AppSettings = {
   autostart: boolean;
   desktopNotifications: boolean;
