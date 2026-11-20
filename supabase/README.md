@@ -10,6 +10,7 @@ supabase/
 ├── migrations/                 6 migrazioni SQL, da applicare in ordine
 ├── tests/                      test del database (pgTAP)
 ├── scripts/
+│   ├── test-functions-deno.sh  deno check + lint + end-to-end delle Edge Functions su Deno
 │   ├── test-db.sh              avvia un Postgres 16 usa-e-getta, applica tutto, esegue pg_prove
 │   ├── stub-supabase.sql       stub minimale degli schemi auth/storage/ruoli (solo test)
 │   └── test-helpers.sql        funzioni di supporto dei test (impersonare utenti, ecc.)
@@ -18,6 +19,7 @@ supabase/
 │   ├── _shared/*.ts            logica pura (testata con vitest sotto Node)
 │   └── deno.json               import map
 ├── functions-tests/            test vitest della logica delle funzioni
+├── functions-e2e/              prova end-to-end su Deno vero (server finti di Supabase/GitHub/Discord)
 ├── package.json, package-lock.json   autonomi (npm), NON nel workspace pnpm
 └── .env.example                nomi dei segreti (senza valori)
 ```
@@ -172,6 +174,10 @@ KEEP=1 supabase/scripts/test-db.sh          # lascia acceso il cluster per ispez
 
 # Edge Functions (logica pura, vitest sotto Node) e controllo dei tipi
 cd supabase && npm ci && npm test && npm run typecheck
+
+# Edge Functions su Deno VERO (da npm, nessuna installazione globale): deno check + lint + prova
+# end-to-end con Supabase, GitHub e Discord finti in locale
+supabase/scripts/test-functions-deno.sh
 ```
 
 Requisiti di `test-db.sh`: binari PostgreSQL 16 (`PG_BIN`, default `/usr/lib/postgresql/16/bin`),
@@ -191,10 +197,11 @@ Cosa è coperto:
 
 ### Limiti noti dei test
 
-- Le Edge Functions **non sono mai state eseguite su Deno né su Supabase**: le entry `index.ts`
-  (poche righe) e `_shared/runtime.ts` sono verificate solo staticamente. Prima del primo uso reale
-  fai `supabase functions serve` e una chiamata di prova per ogni funzione.
-- Le chiamate a GitHub e Discord sono simulate con un `fetch` finto: nessuna è stata fatta
+- Le Edge Functions girano su **Deno 2.9.6 vero** (`test-functions-deno.sh`: `deno check`, `deno lint` e
+  18 scenari end-to-end con richieste HTTP vere a ogni funzione), ma **non sono mai state eseguite sul
+  runtime di Supabase** né contro un Supabase vero: lì mancano ancora una prova con
+  `supabase functions serve` e una chiamata di prova per funzione.
+- Le chiamate a GitHub e Discord sono simulate (`fetch` finto nei test vitest, server locali nell'end-to-end su Deno): nessuna è stata fatta
   contro i servizi veri (servono l'organizzazione e l'app reali).
 - Lo stub di `auth`/`storage` riproduce ciò da cui dipendono le migrazioni, non l'intero
   comportamento di Supabase (per esempio `storage.objects.owner_id` è valorizzato a mano nei test).

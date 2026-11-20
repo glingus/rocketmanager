@@ -64,6 +64,11 @@ jobs:
           npm test
           npm run typecheck
 
+      # Deno vero (da npm): deno check + lint delle entry e prova end-to-end di ogni funzione come
+      # processo separato, con Supabase/GitHub/Discord finti in locale.
+      - name: Edge Functions su Deno (check, lint, end-to-end)
+        run: supabase/scripts/test-functions-deno.sh
+
       - name: Script di release (node --test)
         run: node --test "scripts/*.test.mjs"
 
