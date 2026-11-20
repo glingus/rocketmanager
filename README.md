@@ -13,6 +13,7 @@ Git e GitHub lavorano in background: chi usa l'app non deve conoscerli.
 | Documento | Per chi |
 |---|---|
 | [Guida utente](docs/guida-utente.md) | Chi usa l'app ogni giorno |
+| [Configurazione iniziale](docs/configurazione-iniziale.md) | Il titolare: GitHub, Supabase e backend pronti con un comando |
 | [Installazione](docs/installazione.md) | Chi installa e chi pubblica le release |
 | [Piano V1](docs/piano-v1.md) | Architettura, scelte, fasi |
 | [Protocollo di sincronizzazione](docs/protocollo-sync.md) | Come funzionano pubblicazione, aggiornamenti, conflitti, ripristino, recupero |
@@ -31,6 +32,7 @@ crates/rs-store/         SQLite locale: journal, conflitti, impostazioni
 crates/rs-core/          motore di sincronizzazione, watcher, conflitti, recupero
 crates/rs-ork/           parser e diff semantico dei file .ork
 supabase/                migrazioni, policy RLS, Edge Functions, test pgTAP
+scripts/setup/           configuratore guidato del backend (Node, senza dipendenze)
 installer/               installazione con un comando, test su Windows Sandbox
 .github/workflows/       CI (Linux + Windows) e release firmata
 tests/fixtures/ork/      file .ork reali usati nei test
@@ -49,11 +51,13 @@ pnpm --filter @rocketsync/desktop test     # test dell'interfaccia
 pnpm --filter @rocketsync/desktop e2e      # flussi end-to-end con screenshot
 bash supabase/scripts/test-db.sh           # schema e policy (PostgreSQL 16 + pgTAP)
 (cd supabase && npm ci && npm test)        # logica delle Edge Functions
+node --test scripts/setup/*.test.mjs       # configuratore del backend (server finti)
 ```
 
 Configurazione della shell (URL Supabase, organizzazione GitHub, updater):
 [`apps/desktop/src-tauri/README.md`](apps/desktop/src-tauri/README.md).
-Backend: [`supabase/README.md`](supabase/README.md).
+Backend: [`supabase/README.md`](supabase/README.md); prima configurazione guidata:
+`node scripts/setup/setup-backend.mjs` ([guida](docs/configurazione-iniziale.md)).
 
 ## Cosa resta da verificare
 

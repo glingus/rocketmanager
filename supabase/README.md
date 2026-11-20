@@ -24,6 +24,12 @@ supabase/
 └── .env.example                nomi dei segreti (senza valori)
 ```
 
+> **Scorciatoia.** I passi 1–4 qui sotto sono automatizzati dal configuratore guidato
+> `node scripts/setup/setup-backend.mjs` (GitHub App, accesso con GitHub, segreti, migrazioni,
+> Vault, Edge Functions, senza copiare segreti a mano). Guida:
+> [`docs/configurazione-iniziale.md`](../docs/configurazione-iniziale.md). Questa pagina resta
+> la procedura manuale e il riferimento di cosa viene configurato.
+
 ## 1. Creare il progetto Supabase
 
 1. Su <https://supabase.com/dashboard> crea un progetto (il piano Free basta per partire; si sospende
