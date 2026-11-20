@@ -82,6 +82,12 @@ jobs:
           cache: pnpm
       - name: Dipendenze dell'app
         run: pnpm install --frozen-lockfile
+      # Generatore delle chiavi dell'updater (formato identico a `tauri signer generate`): prove di
+      # compatibilità con la CLI ufficiale, che qui deve esserci (REQUIRE_TAURI_CLI).
+      - name: Chiavi dell'updater (node --test, con la CLI ufficiale di Tauri)
+        env:
+          REQUIRE_TAURI_CLI: "1"
+        run: node --test "scripts/updater-keys/*.test.mjs"
       - name: Typecheck
         run: pnpm -r typecheck
       - name: Lint
@@ -173,6 +179,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+
+      # Su Windows vero: formato delle chiavi, vettori della CLI ufficiale e script (senza la CLI nativa).
+      - name: Chiavi dell'updater (node --test)
+        run: node --test "scripts/updater-keys/*.test.mjs"
 
       - name: Scarica MinGit (incluso nell'app)
         shell: pwsh

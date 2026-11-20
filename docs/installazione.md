@@ -139,6 +139,7 @@ progetti** (le cartelle con i file `.ork`) né i repository su GitHub.
 | **Antivirus** blocca o mette in quarantena l'installer | È un falso positivo tipico dei programmi non firmati. Verifica l'impronta SHA-256 pubblicata nella release (`RocketSync-setup.exe.sha256`), poi ripristina il file dalla quarantena o aggiungi un'eccezione per `%LOCALAPPDATA%\Rocket Sync`. |
 | **OneDrive / Dropbox / Google Drive**: errori strani, file "in uso", sincronizzazioni doppie | Non tenere la cartella dei progetti dentro una cartella sincronizzata: i file `.ork` vengono riscritti a ogni salvataggio e il servizio li blocca o li duplica. L'app avvisa se la cartella scelta è in un disco sincronizzato; scegline una fuori (es. `C:\Users\<tu>\RocketSync`). |
 | Rocket Sync è aperto e non si chiude (codice 40) | Clic destro sull'icona nell'area di notifica → **Esci**, poi rilancia il comando. |
+| `npx @tauri-apps/cli signer generate` fallisce con *"Un criterio di controllo dell'applicazione ha bloccato il file"* (riferito a `cli.win32-x64-msvc.node`) | È il **Controllo intelligente delle app** di Windows 11 (Smart App Control), che blocca il modulo nativo della CLI di Tauri perché non firmato. Non serve disattivarlo (non si può riattivare senza reinstallare Windows): genera le chiavi con lo script in JavaScript puro, che non usa moduli nativi: `node scripts/updater-keys/genera-chiavi.mjs -w %USERPROFILE%\.tauri\rocketsync.key` (§8.2). Per la **build** dell'installer usa la CI su GitHub (`release.yml`), non il PC con il blocco. |
 | WebView2 non si installa (codice 21) | Installalo a mano da <https://developer.microsoft.com/microsoft-edge/webview2/> ("Evergreen Standalone Installer", x64), poi rilancia. |
 | Codice 13 | Il comando non conosce il repository delle release: usa quello fornito da chi mantiene il progetto, oppure `-Owner`/`-Repo`. |
 | Finestra bianca all'avvio | Di solito WebView2 mancante o corrotto: rilancia il comando di installazione (lo ripara). |
@@ -185,13 +186,27 @@ restare privato, in un repo diverso). Un repository privato non permette il down
 
 1. **Chiavi dell'updater** (su un PC fidato):
 
+   Serve solo **Node 20 o più recente** (nient'altro: nessuna installazione, nessun modulo nativo). Dalla
+   cartella del repository, in un Prompt dei comandi:
+
    ```
-   pnpm --filter @rocketsync/desktop tauri signer generate -w %USERPROFILE%\.tauri\rocketsync.key
+   node scripts/updater-keys/genera-chiavi.mjs -w %USERPROFILE%\.tauri\rocketsync.key
    ```
 
-   Crea la chiave **privata** (`rocketsync.key`) e la **pubblica** (`rocketsync.key.pub`). Scegli una
-   password. **Conserva la chiave privata e la password in un posto sicuro (gestore di password):
-   se le perdi non potrai più pubblicare aggiornamenti accettati dalle app già installate.**
+   Chiede la password due volte (mentre digiti non compare nulla) e crea la chiave **privata**
+   (`rocketsync.key`) e la **pubblica** (`rocketsync.key.pub`), nello **stesso formato** di
+   `tauri signer generate`: la CLI di Tauri accetta la chiave (`tauri signer sign`, `tauri build`) e
+   l'updater di Tauri verifica le firme. Non sovrascrive file esistenti senza `--force`. Opzioni:
+   `--password-env NOME` (password da variabile d'ambiente, utile in automazione), `--check <percorso>`
+   (verifica più tardi che la chiave si decifri con la password e corrisponda alla pubblica).
+   Dettagli sul formato e sulle prove di compatibilità: `scripts/updater-keys/README.md`.
+
+   Perché non `tauri signer generate`? Su Windows 11 la CLI di Tauri carica un modulo nativo
+   (`cli.win32-x64-msvc.node`) che il *Controllo intelligente delle app* può bloccare (vedi §7); lo
+   script di questa sezione è JavaScript puro e non è soggetto al blocco.
+
+   **Conserva la chiave privata e la password in un posto sicuro (gestore di password): se le perdi non
+   potrai più pubblicare aggiornamenti accettati dalle app già installate.**
 2. **Repository delle release**: crealo (pubblico), per esempio `<organizzazione>/rocketsync-releases`.
 3. **Token** per scriverci: *Settings → Developer settings → Fine-grained tokens* con accesso al solo
    repository delle release e permesso **Contents: Read and write** (e *Metadata: read*).
@@ -249,6 +264,10 @@ restare privato, in un repo diverso). Un repository privato non permette il down
 # script di release (generazione di latest.json, coerenza di versione)
 node --test "scripts/*.test.mjs"
 node scripts/check-release-version.mjs v0.1.0
+
+# generatore delle chiavi dell'updater (formato identico alla CLI di Tauri; le prove "dal vivo"
+# con la CLI ufficiale girano se è installata: pnpm install)
+node --test "scripts/updater-keys/*.test.mjs"
 
 # script di installazione (Pester 5, PowerShell 7)
 pwsh -NoProfile -Command "Invoke-Pester installer/tests -Output Detailed"

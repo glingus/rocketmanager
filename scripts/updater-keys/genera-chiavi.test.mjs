@@ -28,7 +28,9 @@ const OFFICIAL_PW = 'rocketsync-test-password';
 const SCRIPT_PW = 'rocketsync-test-password-2';
 
 const cliCandidates = [process.env.TAURI_CLI, join(root, 'apps/desktop/node_modules/.bin/tauri')].filter(Boolean);
-const TAURI = cliCandidates.find((p) => existsSync(p));
+// Su Windows lo shim di pnpm (.bin/tauri) non è eseguibile direttamente: le prove "dal vivo" ci sono
+// solo se si indica TAURI_CLI. Il resto dei test (formato, vettori ufficiali, script) gira ovunque.
+const TAURI = process.platform === 'win32' && !process.env.TAURI_CLI ? undefined : cliCandidates.find((p) => existsSync(p));
 const live = (name, fn) =>
   test(name, { skip: !TAURI && process.env.REQUIRE_TAURI_CLI !== '1' ? 'CLI ufficiale di Tauri non trovata (pnpm install)' : false }, async (t) => {
     assert.ok(TAURI, 'REQUIRE_TAURI_CLI=1 ma la CLI ufficiale di Tauri non è installata');
