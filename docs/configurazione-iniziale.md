@@ -197,6 +197,7 @@ Il configuratore traduce gli errori in frasi chiare e dice come proseguire. I ca
 | «La migrazione … non è riuscita» | Ogni migrazione è una transazione: nulla di mezzo è rimasto. Leggi il dettaglio SQL stampato, correggi e rilancia: riparte da quella. |
 | «La pubblicazione delle Edge Functions non è riuscita» | Controlla la connessione e che `npx` funzioni (`npx --version`); rilancia: i passi già fatti vengono saltati. |
 | «Non trovo le chiavi API "anon" e "service_role"» | Il progetto usa solo le nuove chiavi: attiva le *Legacy API keys* da *Project Settings → API Keys* e rilancia. |
+| Nell'app: «Accesso non riuscito: Error getting user profile from external provider» | Alla GitHub App manca il permesso sulle email (app create prima del 21/11/2026). Su GitHub: *Organizzazione → Settings → GitHub Apps → Rocket Sync … → Edit → Permissions & events → Account permissions → Email addresses: Read-only → Save changes*. Poi riprova l'accesso dall'app e accetta la nuova autorizzazione. |
 
 Per i problemi dopo la configurazione (webhook, Discord, accesso dall'app) vedi
 [runbook-recupero.md](runbook-recupero.md) e [`supabase/README.md`](../supabase/README.md).

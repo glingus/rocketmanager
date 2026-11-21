@@ -105,7 +105,10 @@ settings → GitHub Apps → New GitHub App*):
   - **Metadata: Read-only** (obbligatorio).
 - *Organization permissions*
   - **Members: Read & write** — verificare l'appartenenza e invitare nell'organizzazione.
-- *Account permissions*: nessuno.
+- *Account permissions*
+  - **Email addresses: Read-only** — Supabase legge le email dell'account (`GET /user/emails`)
+    all'accesso: senza questo permesso il login fallisce con *Error getting user profile from
+    external provider*.
 
 **Eventi a cui iscriversi**: solo **Push**. (`ping` arriva da solo.) Il webhook ignora tutti i rami
 diversi dal ramo principale del progetto (`conflitti/<id>` compresi) e i commit senza trailer

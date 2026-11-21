@@ -19,6 +19,9 @@ export const APP_PERMISSIONS = {
   contents: 'write',
   metadata: 'read',
   members: 'write',
+  // Account permission "Email addresses": Supabase legge GET /user/emails all'accesso; senza,
+  // il login fallisce con "Error getting user profile from external provider".
+  emails: 'read',
 };
 
 export function appName(org) {

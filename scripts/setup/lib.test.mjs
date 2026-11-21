@@ -56,7 +56,7 @@ test('il manifest contiene esattamente ciò che chiede il piano', () => {
   assert.deepEqual(m.callback_urls, [`https://${FAKE.ref}.supabase.co/auth/v1/callback`]);
   assert.equal(m.request_oauth_on_install, false);
   assert.equal(m.public, false);
-  assert.deepEqual(m.default_permissions, { administration: 'write', contents: 'write', metadata: 'read', members: 'write' });
+  assert.deepEqual(m.default_permissions, { administration: 'write', contents: 'write', metadata: 'read', members: 'write', emails: 'read' });
   assert.deepEqual(m.default_events, ['push']);
   assert.equal(typeof m.url, 'string');
   assert.deepEqual(APP_PERMISSIONS, m.default_permissions);
