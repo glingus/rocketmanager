@@ -549,7 +549,11 @@ impl Shell {
         let copy = self
             .engine()?
             .export_version_copy(project_id, sha.to_string(), path.to_string())
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::warn!(project = %project_id, sha = %sha, error = %e, "open_version_copy: export failed");
+                AppError::from(e)
+            })?;
         self.launch(&copy)
     }
 
@@ -705,6 +709,12 @@ impl Shell {
             }
             _ => self.platform.open_path(file),
         };
+        match &r {
+            Ok(()) => {
+                tracing::info!(file = %file.display(), with = ?info.path.as_deref().filter(|_| info.found), "file opened")
+            }
+            Err(e) => tracing::warn!(file = %file.display(), error = %e, "opening the file failed"),
+        }
         r.map_err(|e| {
             app_error(
                 ErrorCode::NotFound,
