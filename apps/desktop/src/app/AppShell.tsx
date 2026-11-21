@@ -1,3 +1,4 @@
+import { UpdateWatcher } from './UpdateWatcher';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { NotificationCenter } from './NotificationCenter';
@@ -34,6 +35,7 @@ export function AppShell() {
       </main>
       <NotificationCenter />
       <EventBridge />
+      <UpdateWatcher />
       {backend.kind === 'mock' && (
         <Suspense fallback={null}>
           <Simulator />

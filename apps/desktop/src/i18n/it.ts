@@ -948,6 +948,7 @@ export const it = {
       upToDate: 'Hai l\u2019ultima versione.',
       available: (v: string) => `È disponibile la versione ${v}`,
       install: 'Installa e riavvia',
+      autoHint: 'Rocket Sync si chiude e si riapre da solo in pochi secondi. I file salvati restano dove sono.',
       installing: 'Installo…',
       notes: 'Novità',
     },

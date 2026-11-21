@@ -364,6 +364,12 @@ conflitto: si risolve come al capitolo 8.
 
 ## 14. Domande frequenti
 
+**Come si aggiorna Rocket Sync?**
+Da solo, con un clic. Pochi secondi dopo l'avvio, e poi ogni 6 ore, l'app controlla se è uscita una
+versione nuova. Se c'è, compare un avviso con **Installa e riavvia**: l'app si chiude e si riapre
+aggiornata. Niente si installa senza il vostro clic. Potete controllare anche a mano da
+**Impostazioni → Aggiornamenti**.
+
 **Ho perso il mio lavoro?**
 Quasi certamente no. L'app non cancella mai niente:
 
