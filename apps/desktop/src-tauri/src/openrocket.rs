@@ -17,21 +17,34 @@ pub struct OpenRocketInfo {
     pub version: Option<String>,
 }
 
-/// Extracts the executable of a shell command such as `"C:\Program Files\OpenRocket\OpenRocket.exe" "%1"`.
+/// Extracts the executable of a shell command such as `"C:\Program Files\OpenRocket\OpenRocket.exe" "%1"`
+/// or of a `DisplayIcon` value such as `C:\...\OpenRocket.exe,0`. Only `.exe` paths count: an icon
+/// (install4j writes `<dir>\.install4j\installer.ico`) is not a program to start.
 pub fn exe_from_command(cmd: &str) -> Option<PathBuf> {
     let c = cmd.trim();
-    if let Some(rest) = c.strip_prefix('"') {
+    let candidate = if let Some(rest) = c.strip_prefix('"') {
         let end = rest.find('"')?;
-        return Some(PathBuf::from(&rest[..end]));
-    }
-    let lower = c.to_lowercase();
-    let end = lower.find(".exe").map(|i| i + 4).unwrap_or(c.len());
-    let p = c[..end].trim();
-    if p.is_empty() {
-        None
+        &rest[..end]
     } else {
-        Some(PathBuf::from(p))
+        let lower = c.to_lowercase();
+        let end = lower.find(".exe").map(|i| i + 4)?;
+        c[..end].trim()
+    };
+    if candidate.to_lowercase().ends_with(".exe") {
+        Some(PathBuf::from(candidate))
+    } else {
+        None
     }
+}
+
+/// Installation folder deduced from an install4j `DisplayIcon` (`<dir>\.install4j\installer.ico`).
+pub fn install_dir_from_icon(icon: &str) -> Option<PathBuf> {
+    let p = PathBuf::from(icon.trim().trim_matches('"'));
+    let parent = p.parent()?;
+    let name = parent.file_name()?.to_string_lossy().to_lowercase();
+    (name == ".install4j")
+        .then(|| parent.parent().map(Path::to_path_buf))
+        .flatten()
 }
 
 /// `OpenRocket 23.09` → `23.09`.
@@ -122,6 +135,9 @@ fn detect_platform() -> OpenRocketInfo {
             if !location.is_empty() {
                 candidates.push(PathBuf::from(&location).join("OpenRocket.exe"));
             }
+            if let Some(dir) = install_dir_from_icon(&icon) {
+                candidates.push(dir.join("OpenRocket.exe"));
+            }
             if let Some(p) = candidates.into_iter().find(|p| p.is_file()) {
                 return info_for(p, version);
             }
@@ -188,8 +204,29 @@ mod tests {
             exe_from_command(r"C:\OpenRocket\OpenRocket.exe %1"),
             Some(PathBuf::from(r"C:\OpenRocket\OpenRocket.exe"))
         );
+        assert_eq!(
+            exe_from_command(r"C:\Program Files\OpenRocket\OpenRocket.exe,0"),
+            Some(PathBuf::from(r"C:\Program Files\OpenRocket\OpenRocket.exe"))
+        );
+        // install4j writes an icon as DisplayIcon: it must never be taken for the program.
+        assert_eq!(
+            exe_from_command(r"C:\Program Files\OpenRocket\.install4j\installer.ico"),
+            None
+        );
+        assert_eq!(exe_from_command(r#""C:\x\icon.ico""#), None);
         assert_eq!(exe_from_command(""), None);
         assert_eq!(exe_from_command(r#""unterminated"#), None);
+    }
+
+    #[test]
+    fn install_dir_from_install4j_icon() {
+        let icon = Path::new("C:/Program Files/OpenRocket/.install4j/installer.ico");
+        assert_eq!(
+            install_dir_from_icon(&icon.to_string_lossy()),
+            Some(PathBuf::from("C:/Program Files/OpenRocket"))
+        );
+        assert_eq!(install_dir_from_icon("C:/x/OpenRocket.exe"), None);
+        assert_eq!(install_dir_from_icon(""), None);
     }
 
     #[test]

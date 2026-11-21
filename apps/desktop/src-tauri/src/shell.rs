@@ -704,9 +704,15 @@ impl Shell {
     fn launch(&self, file: &Path) -> CmdResult<()> {
         let info = self.openrocket_info();
         let r = match info.path.as_deref().filter(|_| info.found) {
-            Some(exe) if openrocket::is_rocket_file(file) => {
-                self.platform.open_with(Path::new(exe), file)
-            }
+            // If starting OpenRocket directly fails (wrong or moved path), Windows still knows
+            // which program opens .ork files: try that before giving up.
+            Some(exe) if openrocket::is_rocket_file(file) => self
+                .platform
+                .open_with(Path::new(exe), file)
+                .or_else(|e| {
+                    tracing::warn!(exe, error = %e, "starting OpenRocket failed, trying the default program");
+                    self.platform.open_path(file).map_err(|e2| format!("{e}; {e2}"))
+                }),
             _ => self.platform.open_path(file),
         };
         match &r {
