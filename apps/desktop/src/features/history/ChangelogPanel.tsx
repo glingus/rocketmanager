@@ -8,6 +8,7 @@ import { it } from '../../i18n/it';
 import { FileComparisonView } from './FileComparisonView';
 import { DownloadDialog, OpenCopyDialog, RestoreDialog } from './ActionDialogs';
 import { QueryState } from '../../app/QueryState';
+import { useApiMutation } from '../../app/useApiMutation';
 import styles from './ChangelogPanel.module.css';
 
 export function ChangelogPanel({
@@ -35,6 +36,11 @@ export function ChangelogPanel({
     queryFn: () => backend.compareVersions({ projectId, fromSha: previous!.sha, toSha: version.sha }),
     enabled: previous != null,
   });
+  // One .ork file: open it straight away, but with the same feedback as the dialog (errors included).
+  const openCopy = useApiMutation((path: string) => backend.openVersionCopy({ projectId, sha: version.sha, path }), {
+    errorTitle: it.history.actions.openCopy,
+    successToast: it.toasts.openedCopy,
+  });
   const orkPaths = version.files.filter((f) => f.path.endsWith('.ork') && f.change !== 'deleted').map((f) => f.path);
   const isInit = version.kind === 'init';
   const published = version.published;
@@ -61,7 +67,7 @@ export function ChangelogPanel({
             <Button size="sm" icon={<Download />} onClick={() => setDialog('download')}>
               {it.history.actions.download}
             </Button>
-            <Button size="sm" icon={<ExternalLink />} onClick={() => (orkPaths.length === 1 ? void backend.openVersionCopy({ projectId, sha: version.sha, path: orkPaths[0]! }) : setDialog('open'))} disabled={orkPaths.length === 0} title={it.history.actions.openCopyHint}>
+            <Button size="sm" icon={<ExternalLink />} onClick={() => (orkPaths.length === 1 ? openCopy.mutate(orkPaths[0]!) : setDialog('open'))} loading={openCopy.isPending} disabled={orkPaths.length === 0} title={it.history.actions.openCopyHint}>
               {it.history.actions.openCopy}
             </Button>
             <Button size="sm" icon={<RotateCcw />} onClick={() => setDialog('restore')} data-testid="restore-button">
