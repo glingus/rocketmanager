@@ -14,7 +14,23 @@ export const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
  * would be a surprise. Each version is offered once per session; failures stay silent
  * (offline, release server unreachable) - the manual check in Settings shows them.
  */
-export function startUpdateWatcher(api: Pick<Backend, 'checkForUpdate' | 'installUpdate'>, timers = { setTimeout, setInterval, clearTimeout, clearInterval }) {
+type Timers = {
+  setTimeout: (fn: () => void, ms: number) => unknown;
+  setInterval: (fn: () => void, ms: number) => unknown;
+  clearTimeout: (id: unknown) => void;
+  clearInterval: (id: unknown) => void;
+};
+
+// The browser timer functions must be called on `window`: taken off it as methods of another
+// object (`timers.setTimeout(...)`) they throw "Illegal invocation" in WebView2.
+const browserTimers: Timers = {
+  setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms),
+  setInterval: (fn, ms) => globalThis.setInterval(fn, ms),
+  clearTimeout: (id) => globalThis.clearTimeout(id as ReturnType<typeof setTimeout>),
+  clearInterval: (id) => globalThis.clearInterval(id as ReturnType<typeof setInterval>),
+};
+
+export function startUpdateWatcher(api: Pick<Backend, 'checkForUpdate' | 'installUpdate'>, timers: Timers = browserTimers) {
   let offered: string | null = null;
   const check = async () => {
     try {

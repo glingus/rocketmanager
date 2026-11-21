@@ -39,4 +39,22 @@ describe('controllo automatico degli aggiornamenti', () => {
     s1();
     s2();
   });
+
+  test('chiama i timer del browser senza staccarli da window (niente "Illegal invocation")', () => {
+    const real = { st: globalThis.setTimeout, si: globalThis.setInterval };
+    const strict = <T extends (...a: never[]) => unknown>(f: T) =>
+      function (this: unknown, ...a: Parameters<T>) {
+        if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation');
+        return f.apply(globalThis, a);
+      };
+    globalThis.setTimeout = strict(real.st) as typeof setTimeout;
+    globalThis.setInterval = strict(real.si) as typeof setInterval;
+    try {
+      const stop = startUpdateWatcher(api(false));
+      stop();
+    } finally {
+      globalThis.setTimeout = real.st;
+      globalThis.setInterval = real.si;
+    }
+  });
 });
