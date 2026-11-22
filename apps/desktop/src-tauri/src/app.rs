@@ -308,6 +308,41 @@ async fn build_shell(
     }))
 }
 
+/// When GitHub refuses the credentials of a project, refreshes the token right away and retries,
+/// instead of waiting for the next periodic check (or for the user to sign in again).
+fn spawn_auth_failure_handler(shell: Arc<Shell>) {
+    let Ok(engine) = shell.engine().cloned() else {
+        return;
+    };
+    let mut rx = engine.subscribe();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(rs_core::EngineEvent::SyncError { project_id, error })
+                    if error.code == ErrorCode::AuthFailed =>
+                {
+                    match shell.auth.force_refresh_github_token().await {
+                        Ok(true) => {
+                            tracing::info!(project = %project_id, "github token refreshed after an authentication failure");
+                            let _ = engine.notify_remote_changed(&project_id);
+                        }
+                        Ok(false) => tracing::warn!(
+                            project = %project_id,
+                            "github refused the token and there is no refresh token: a new sign-in is needed"
+                        ),
+                        Err(e) => {
+                            tracing::warn!(project = %project_id, error = %e, "github token refresh failed")
+                        }
+                    }
+                }
+                Ok(_) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    });
+}
+
 /// Keeps the GitHub token fresh while the application runs.
 fn spawn_token_refresher(shell: Arc<Shell>) {
     tauri::async_runtime::spawn(async move {
@@ -351,6 +386,7 @@ pub fn run() {
                     }
                 }
                 spawn_token_refresher(shell.clone());
+                spawn_auth_failure_handler(shell.clone());
                 handle.state::<AppState>().set_shell(shell);
             });
             Ok(())

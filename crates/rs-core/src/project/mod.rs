@@ -16,7 +16,7 @@ mod tick;
 pub(crate) use link::{check_folder, link_folder};
 
 use crate::config::{EngineConfig, Identity};
-use crate::error::{AppError, CoreError, Result};
+use crate::error::{AppError, CoreError, ErrorCode, Result};
 use crate::events::EngineEvent;
 use crate::tracker::FileTracker;
 use crate::types::ProjectStatus;
@@ -35,6 +35,10 @@ pub(crate) const MAIN_REF: &str = "refs/heads/main";
 pub(crate) const ORIGIN_REF: &str = "refs/remotes/origin/main";
 pub(crate) const MAX_FILE_BYTES: u64 = 100 * 1024 * 1024;
 pub(crate) const WARN_FILE_BYTES: u64 = 50 * 1024 * 1024;
+
+/// Pause of the periodic fetch after GitHub refused the credentials (a new sign-in or a refreshed
+/// token resumes it through `notify_remote_changed`).
+const AUTH_FAILED_BACKOFF: std::time::Duration = std::time::Duration::from_secs(300);
 
 /// State shared by all projects of an engine.
 pub(crate) struct Shared {
@@ -369,7 +373,25 @@ impl ProjectInner {
             return;
         }
         let app = e.to_app_error();
-        self.rt(|r| r.last_error = Some(app.clone()));
+        let auth_failed = app.code == ErrorCode::AuthFailed;
+        // The same error again (the periodic fetch retries every minute or so) is not news: the
+        // status keeps showing it, but toasts, desktop notifications and the activity log only
+        // hear about it once, until it changes or a success clears it.
+        let repeated = self.rt(|r| {
+            let same = r
+                .last_error
+                .as_ref()
+                .is_some_and(|old| old.code == app.code && old.message == app.message);
+            r.last_error = Some(app.clone());
+            if auth_failed {
+                // GitHub refused the credentials: hammering it does not help, a new token does.
+                r.next_fetch = r.next_fetch.max(Instant::now() + AUTH_FAILED_BACKOFF);
+            }
+            same
+        });
+        if repeated {
+            return;
+        }
         self.emit(EngineEvent::SyncError {
             project_id: self.id.clone(),
             error: app,

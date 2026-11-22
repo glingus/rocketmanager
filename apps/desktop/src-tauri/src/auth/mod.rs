@@ -351,6 +351,23 @@ impl AuthService {
 
     /// Renews the GitHub token if it is about to expire. Call before network operations.
     pub async fn ensure_github_token(&self) -> Result<(), AppError> {
+        self.refresh_github_token_if(false).await
+    }
+
+    /// Refreshes the GitHub token now, whatever its stored expiry says (GitHub refused it).
+    /// Returns `Ok(true)` when a new token was saved, `Ok(false)` when there is nothing to refresh
+    /// with (a token without a refresh token: only a new sign-in helps).
+    pub async fn force_refresh_github_token(&self) -> Result<bool, AppError> {
+        let had_refresh = self
+            .read::<StoredGithub>(KEY_GITHUB)
+            .is_some_and(|g| g.refresh_token.is_some());
+        if !had_refresh {
+            return Ok(false);
+        }
+        self.refresh_github_token_if(true).await.map(|()| true)
+    }
+
+    async fn refresh_github_token_if(&self, force: bool) -> Result<(), AppError> {
         let Some(g) = self.read::<StoredGithub>(KEY_GITHUB) else {
             return Err(AppError {
                 code: ErrorCode::AuthRequired,
@@ -359,10 +376,14 @@ impl AuthService {
                 retryable: false,
             });
         };
-        let (Some(exp), Some(rt)) = (g.expires_at, g.refresh_token.clone()) else {
-            return Ok(()); // the token does not expire
+        let Some(rt) = g.refresh_token.clone() else {
+            return Ok(()); // no refresh token: the token does not expire (or only a sign-in helps)
         };
-        if exp > self.now() + GITHUB_REFRESH_MARGIN {
+        // Without a known expiry the token is refreshed only on demand (GitHub refused it).
+        let due = g
+            .expires_at
+            .is_some_and(|exp| exp <= self.now() + GITHUB_REFRESH_MARGIN);
+        if !force && !due {
             return Ok(());
         }
         let client = self.client().map_err(|e| auth_error_to_app(&e))?;

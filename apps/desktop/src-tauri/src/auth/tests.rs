@@ -337,6 +337,41 @@ async fn github_token_is_renewed_through_the_edge_function() {
 }
 
 #[tokio::test]
+async fn refused_github_token_is_refreshed_on_demand_even_without_a_known_expiry() {
+    let (sb_base, log) = fake_server(Arc::new(|_: &Req| {
+        (200, r#"{"accessToken":"ghu_new","refreshToken":"ghr_new","expiresAt":null,"refreshTokenExpiresAt":null}"#.to_string())
+    }))
+    .await;
+    let store = Arc::new(memory_store());
+    seed(store.as_ref(), 9_999_999_999, None); // refresh token, unknown expiry
+    let svc = AuthService::new(cfg(&sb_base), store.clone())
+        .with_test_hooks("http://unused", clock(1_000_000));
+    // the periodic check leaves it alone...
+    svc.ensure_github_token().await.unwrap();
+    assert_eq!(log.lock().unwrap().len(), 0);
+    // ...but when GitHub refuses it, it is refreshed right away
+    assert!(svc.force_refresh_github_token().await.unwrap());
+    assert_eq!(
+        load_github_token(store.as_ref()).as_deref(),
+        Some("ghu_new")
+    );
+    assert_eq!(log.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn forced_refresh_without_a_refresh_token_asks_for_a_sign_in() {
+    let store = Arc::new(memory_store());
+    save_github_token_for_tests(store.as_ref(), "ghu_static");
+    let svc = AuthService::new(cfg("http://127.0.0.1:9"), store.clone())
+        .with_test_hooks("http://unused", clock(1_000_000));
+    assert!(!svc.force_refresh_github_token().await.unwrap());
+    assert_eq!(
+        load_github_token(store.as_ref()).as_deref(),
+        Some("ghu_static")
+    );
+}
+
+#[tokio::test]
 async fn dead_github_refresh_token_requires_a_new_sign_in() {
     let (sb_base, _) = fake_server(Arc::new(|_| {
         (
