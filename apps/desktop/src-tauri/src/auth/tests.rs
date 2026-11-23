@@ -434,6 +434,73 @@ async fn expired_session_is_renewed_and_a_rejected_refresh_signs_out() {
 }
 
 #[tokio::test]
+async fn server_trouble_never_deletes_credentials() {
+    let (sb_base, _) = fake_server(Arc::new(|r: &Req| {
+        if r.path.starts_with("/auth/v1/token") {
+            (503, r#"{"msg":"Service Unavailable"}"#.to_string())
+        } else {
+            (502, r#"{"error":{"code":"github_oauth_error","message":"GitHub ha rifiutato il rinnovo (http_502)"}}"#.to_string())
+        }
+    }))
+    .await;
+    let store = Arc::new(memory_store());
+    seed(store.as_ref(), 9_999_999_999, Some(1_000_100));
+    let svc = AuthService::new(cfg(&sb_base), store.clone())
+        .with_test_hooks("http://unused", clock(1_000_000));
+    // GitHub refresh: 502 is transient, the token stays
+    let e = svc.ensure_github_token().await.unwrap_err();
+    assert_eq!(e.code, ErrorCode::Network);
+    assert_eq!(
+        load_github_token(store.as_ref()).as_deref(),
+        Some("ghu_old")
+    );
+    // Supabase session renewal: 503 keeps the user signed in
+    seed(store.as_ref(), 1, Some(1_000_100));
+    let st = svc.status().await.unwrap();
+    assert!(st.signed_in);
+    assert_eq!(
+        load_github_token(store.as_ref()).as_deref(),
+        Some("ghu_old")
+    );
+}
+
+#[tokio::test]
+async fn concurrent_refreshes_use_the_refresh_token_once() {
+    let (sb_base, log) = fake_server(Arc::new(|r: &Req| {
+        let b: serde_json::Value = serde_json::from_str(&r.body).unwrap();
+        if b["refreshToken"] == "ghr_old" {
+            (200, r#"{"accessToken":"ghu_new","refreshToken":"ghr_new","expiresAt":"2030-01-01T00:00:00.000Z","refreshTokenExpiresAt":null}"#.to_string())
+        } else {
+            (401, r#"{"error":{"code":"bad_refresh_token","message":"già usato"}}"#.to_string())
+        }
+    }))
+    .await;
+    let store = Arc::new(memory_store());
+    seed(store.as_ref(), 9_999_999_999, Some(1_000_100));
+    let svc = Arc::new(
+        AuthService::new(cfg(&sb_base), store.clone())
+            .with_test_hooks("http://unused", clock(1_000_000)),
+    );
+    let (a, b, c) = tokio::join!(
+        svc.ensure_github_token(),
+        svc.force_refresh_github_token(),
+        svc.ensure_github_token()
+    );
+    a.unwrap();
+    assert!(b.unwrap());
+    c.unwrap();
+    assert_eq!(
+        load_github_token(store.as_ref()).as_deref(),
+        Some("ghu_new")
+    );
+    assert_eq!(
+        log.lock().unwrap().len(),
+        1,
+        "one call to the refresh endpoint"
+    );
+}
+
+#[tokio::test]
 async fn offline_keeps_the_stored_session_and_sign_out_clears_everything() {
     let store = Arc::new(memory_store());
     seed(store.as_ref(), 1, None);

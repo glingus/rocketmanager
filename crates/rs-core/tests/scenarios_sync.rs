@@ -1115,3 +1115,38 @@ async fn status_json_matches_the_ipc_contract() {
         serde_json::json!({"projectId": "p", "number": 3, "sha": "abc", "title": "T"})
     );
 }
+
+#[tokio::test]
+async fn a_repeated_background_error_is_reported_once_and_cleared_by_a_good_fetch() {
+    let remote = Remote::new();
+    let b = user_with_background("Bruno", &remote, 100).await;
+    b.wait_status(10, |s| s.state == SyncState::Synced).await;
+    let mut rx = b.engine.subscribe();
+
+    // The remote turns into a repository without the project's branch: every fetch fails with
+    // the same (non-network) error.
+    let saved = remote.root.path().join("remote-saved.git");
+    std::fs::rename(&remote.path, &saved).unwrap();
+    git(
+        remote.root.path(),
+        &["init", "--bare", "-q", remote.path.to_str().unwrap()],
+    );
+    let st = b.wait_status(10, |s| s.state == SyncState::Error).await;
+    assert!(st.error.is_some());
+    // several more fetch attempts (100 ms apart) fail the same way
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+    let errors = drain(&mut rx)
+        .into_iter()
+        .filter(|e| matches!(e, EngineEvent::SyncError { .. }))
+        .count();
+    assert_eq!(
+        errors, 1,
+        "the same error is announced once, not at every fetch"
+    );
+
+    // The remote is back: a successful fetch with nothing to do clears the error state.
+    std::fs::remove_dir_all(&remote.path).unwrap();
+    std::fs::rename(&saved, &remote.path).unwrap();
+    let st = b.wait_status(10, |s| s.state == SyncState::Synced).await;
+    assert!(st.error.is_none(), "{st:#?}");
+}

@@ -22,6 +22,9 @@ use supabase::{fetch_github_user, AuthError, SupabaseClient};
 const KEY_SESSION: &str = "auth.session";
 const KEY_GITHUB: &str = "auth.github";
 const KEY_PROFILE: &str = "auth.profile";
+/// Renew the Supabase session when it expires within this many seconds. Generous, because the
+/// interface takes its access token from here (`auth_status`) and must never hold an expired one.
+const SESSION_REFRESH_MARGIN: i64 = 5 * 60;
 /// Renew the GitHub token when it expires within this many seconds.
 const GITHUB_REFRESH_MARGIN: i64 = 15 * 60;
 /// GitHub App user tokens last 8 hours (minus a safety margin) when expiry is enabled.
@@ -91,6 +94,7 @@ pub fn auth_error_to_app(e: &AuthError) -> AppError {
     let (code, retryable) = match e {
         AuthError::Network(_) => (ErrorCode::Network, true),
         AuthError::Rejected(_) | AuthError::Cancelled(_) => (ErrorCode::AuthFailed, false),
+        AuthError::RefreshTokenInvalid(_) => (ErrorCode::AuthRequired, false),
         AuthError::NotConfigured | AuthError::Invalid(_) => (ErrorCode::Internal, false),
     };
     AppError {
@@ -100,6 +104,7 @@ pub fn auth_error_to_app(e: &AuthError) -> AppError {
                 "Impossibile raggiungere il server di accesso. Controlla la connessione.".into()
             }
             AuthError::Rejected(m) => format!("Accesso non riuscito: {m}."),
+            AuthError::RefreshTokenInvalid(_) => "La sessione è scaduta: accedi di nuovo.".into(),
             AuthError::Cancelled(_) => "Accesso annullato o scaduto. Riprova.".into(),
             AuthError::NotConfigured | AuthError::Invalid(_) => e.to_string(),
         },
@@ -155,6 +160,9 @@ pub struct AuthService {
     http: reqwest::Client,
     github_api: String,
     signing_in: AtomicBool,
+    /// One renewal at a time: refresh tokens are single-use, so two concurrent renewals with the
+    /// same token make the second one fail (and look like a dead token).
+    refresh_lock: tokio::sync::Mutex<()>,
     now: Arc<dyn Fn() -> i64 + Send + Sync>,
 }
 
@@ -171,6 +179,7 @@ impl AuthService {
             http,
             github_api: "https://api.github.com".into(),
             signing_in: AtomicBool::new(false),
+            refresh_lock: tokio::sync::Mutex::new(()),
             now: Arc::new(|| chrono::Utc::now().timestamp()),
         }
     }
@@ -243,28 +252,40 @@ impl AuthService {
         }
     }
 
-    /// Current status; renews an expired Supabase session when possible.
+    /// Current status; renews a Supabase session that is about to expire. This shell is the only
+    /// owner of the session: the interface takes its access token from here and never refreshes it.
     pub async fn status(&self) -> Result<AuthStatus, AppError> {
-        if let Some(s) = self.read::<StoredSession>(KEY_SESSION) {
-            if s.expires_at <= self.now() + 30 {
-                match self.renew_session(&s).await {
-                    Ok(_) => {}
-                    Err(AuthError::Rejected(_)) => {
-                        // The refresh token is no longer valid: the user has to sign in again.
-                        self.clear();
-                    }
-                    Err(_) => {} // offline: keep what we have
-                }
+        match self.fresh_session().await {
+            Ok(_) | Err(AuthError::NotConfigured) => {}
+            Err(AuthError::RefreshTokenInvalid(_)) => {
+                // The session is dead for good: the user has to sign in again.
+                self.clear();
             }
+            Err(e) => tracing::info!(error = %e, "session renewal postponed"), // offline, server trouble
         }
         Ok(self.status_from_store())
     }
 
-    async fn renew_session(&self, old: &StoredSession) -> Result<StoredSession, AuthError> {
-        let t = self.client()?.refresh_session(&old.refresh_token).await?;
-        let s = self.session_from(&t);
-        self.write(KEY_SESSION, &s)?;
-        Ok(s)
+    /// The stored session, renewed first if it expires within [`SESSION_REFRESH_MARGIN`].
+    /// `None` when signed out. Serialized with every other renewal.
+    async fn fresh_session(&self) -> Result<Option<StoredSession>, AuthError> {
+        let _guard = self.refresh_lock.lock().await;
+        self.fresh_session_locked().await
+    }
+
+    /// Same as [`Self::fresh_session`]; the caller holds `refresh_lock`. The session is re-read
+    /// here, after the lock, so a renewal done meanwhile by someone else is reused, not repeated.
+    async fn fresh_session_locked(&self) -> Result<Option<StoredSession>, AuthError> {
+        let Some(s) = self.read::<StoredSession>(KEY_SESSION) else {
+            return Ok(None);
+        };
+        if s.expires_at > self.now() + SESSION_REFRESH_MARGIN {
+            return Ok(Some(s));
+        }
+        let t = self.client()?.refresh_session(&s.refresh_token).await?;
+        let renewed = self.session_from(&t);
+        self.write(KEY_SESSION, &renewed)?;
+        Ok(Some(renewed))
     }
 
     fn session_from(&self, t: &supabase::TokenResponse) -> StoredSession {
@@ -351,23 +372,30 @@ impl AuthService {
 
     /// Renews the GitHub token if it is about to expire. Call before network operations.
     pub async fn ensure_github_token(&self) -> Result<(), AppError> {
-        self.refresh_github_token_if(false).await
+        self.refresh_github_token_if(None).await
     }
 
     /// Refreshes the GitHub token now, whatever its stored expiry says (GitHub refused it).
-    /// Returns `Ok(true)` when a new token was saved, `Ok(false)` when there is nothing to refresh
-    /// with (a token without a refresh token: only a new sign-in helps).
+    /// Returns `Ok(true)` when a new token is in place (refreshed here, or meanwhile by another
+    /// caller), `Ok(false)` when there is nothing to refresh with (a token without a refresh
+    /// token: only a new sign-in helps).
     pub async fn force_refresh_github_token(&self) -> Result<bool, AppError> {
-        let had_refresh = self
-            .read::<StoredGithub>(KEY_GITHUB)
-            .is_some_and(|g| g.refresh_token.is_some());
-        if !had_refresh {
+        let Some(refused) = self.read::<StoredGithub>(KEY_GITHUB) else {
+            return Ok(false);
+        };
+        if refused.refresh_token.is_none() {
             return Ok(false);
         }
-        self.refresh_github_token_if(true).await.map(|()| true)
+        self.refresh_github_token_if(Some(&refused.access_token))
+            .await
+            .map(|()| true)
     }
 
-    async fn refresh_github_token_if(&self, force: bool) -> Result<(), AppError> {
+    /// `refused`: the token GitHub turned down (forced refresh); `None` for the periodic check,
+    /// which refreshes only near the stored expiry.
+    async fn refresh_github_token_if(&self, refused: Option<&str>) -> Result<(), AppError> {
+        let _guard = self.refresh_lock.lock().await;
+        // Read after the lock: another caller may have refreshed while we waited.
         let Some(g) = self.read::<StoredGithub>(KEY_GITHUB) else {
             return Err(AppError {
                 code: ErrorCode::AuthRequired,
@@ -379,28 +407,30 @@ impl AuthService {
         let Some(rt) = g.refresh_token.clone() else {
             return Ok(()); // no refresh token: the token does not expire (or only a sign-in helps)
         };
-        // Without a known expiry the token is refreshed only on demand (GitHub refused it).
-        let due = g
-            .expires_at
-            .is_some_and(|exp| exp <= self.now() + GITHUB_REFRESH_MARGIN);
-        if !force && !due {
+        let due = match refused {
+            // Already replaced since GitHub refused it: nothing left to do.
+            Some(old) => old == g.access_token,
+            // Without a known expiry the token is refreshed only on demand.
+            None => g
+                .expires_at
+                .is_some_and(|exp| exp <= self.now() + GITHUB_REFRESH_MARGIN),
+        };
+        if !due {
             return Ok(());
         }
         let client = self.client().map_err(|e| auth_error_to_app(&e))?;
-        let mut session = self
-            .read::<StoredSession>(KEY_SESSION)
-            .ok_or_else(|| AppError {
-                code: ErrorCode::AuthRequired,
-                message: "La sessione è scaduta: accedi di nuovo.".into(),
-                detail: None,
-                retryable: false,
-            })?;
-        if session.expires_at <= self.now() + 30 {
-            session = self
-                .renew_session(&session)
-                .await
-                .map_err(|e| auth_error_to_app(&e))?;
-        }
+        let session = match self.fresh_session_locked().await {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                return Err(AppError {
+                    code: ErrorCode::AuthRequired,
+                    message: "La sessione è scaduta: accedi di nuovo.".into(),
+                    detail: None,
+                    retryable: false,
+                })
+            }
+            Err(e) => return Err(auth_error_to_app(&e)),
+        };
         match client
             .refresh_github_token(&session.access_token, &rt)
             .await
@@ -415,8 +445,8 @@ impl AuthService {
                     .map_err(|e| auth_error_to_app(&e))?;
                 Ok(())
             }
-            Err(AuthError::Rejected(m)) => {
-                // The refresh token is dead: only a new sign-in can fix it.
+            Err(AuthError::RefreshTokenInvalid(m)) => {
+                // The GitHub refresh token is dead: only a new sign-in can fix it.
                 let _ = self.store.delete(KEY_GITHUB);
                 Err(AppError {
                     code: ErrorCode::AuthRequired,
@@ -425,6 +455,7 @@ impl AuthService {
                     retryable: false,
                 })
             }
+            // Anything else (server trouble, expired session JWT...) keeps the stored tokens.
             Err(e) => Err(auth_error_to_app(&e)),
         }
     }

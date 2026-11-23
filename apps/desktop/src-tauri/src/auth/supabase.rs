@@ -12,9 +12,13 @@ pub enum AuthError {
     /// The server could not be reached.
     #[error("impossibile raggiungere il server: {0}")]
     Network(String),
-    /// The server refused the request (bad code, bad or expired refresh token...).
+    /// The server refused the request (bad code, expired session, missing rights...).
     #[error("{0}")]
     Rejected(String),
+    /// The refresh token is dead (used, revoked, expired): only a new sign-in helps.
+    /// The only error that may make the caller delete stored credentials.
+    #[error("{0}")]
+    RefreshTokenInvalid(String),
     /// The answer could not be understood.
     #[error("risposta non valida dal server: {0}")]
     Invalid(String),
@@ -71,6 +75,12 @@ pub struct GithubUser {
 }
 
 fn error_message(body: &serde_json::Value, status: u16) -> String {
+    // Edge Functions answer `{ error: { code, message } }`, Supabase Auth `{ error, error_description }`.
+    if let Some(s) = body.pointer("/error/message").and_then(|v| v.as_str()) {
+        if !s.is_empty() {
+            return s.to_string();
+        }
+    }
     for k in ["error_description", "msg", "message", "error"] {
         if let Some(s) = body.get(k).and_then(|v| v.as_str()) {
             if !s.is_empty() {
@@ -79,6 +89,40 @@ fn error_message(body: &serde_json::Value, status: u16) -> String {
         }
     }
     format!("errore HTTP {status}")
+}
+
+/// Machine-readable error code, in any of the shapes Supabase Auth and the Edge Functions use.
+fn error_code(body: &serde_json::Value) -> Option<String> {
+    ["/error/code", "/error_code", "/code", "/error"]
+        .iter()
+        .find_map(|p| body.pointer(p).and_then(|v| v.as_str()))
+        .map(str::to_string)
+}
+
+/// Codes meaning "this refresh token can never work again".
+const DEAD_REFRESH_CODES: &[&str] = &[
+    "bad_refresh_token",
+    "refresh_token_not_found",
+    "refresh_token_already_used",
+    "session_not_found",
+    "session_expired",
+];
+
+/// Classifies a failed HTTP answer. Server trouble (5xx, 429) is transient and must never cost
+/// the user their stored credentials; only a dead refresh token does.
+fn classify_failure(status: u16, body: &serde_json::Value) -> AuthError {
+    let msg = error_message(body, status);
+    if status >= 500 || status == 429 {
+        return AuthError::Network(msg);
+    }
+    let code = error_code(body).unwrap_or_default();
+    let desc = msg.to_ascii_lowercase();
+    if DEAD_REFRESH_CODES.contains(&code.as_str())
+        || (code == "invalid_grant" && desc.contains("refresh token"))
+    {
+        return AuthError::RefreshTokenInvalid(msg);
+    }
+    AuthError::Rejected(msg)
 }
 
 /// Client of one Supabase project.
@@ -130,7 +174,7 @@ impl SupabaseClient {
         let status = resp.status();
         let json: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
         if !status.is_success() {
-            return Err(AuthError::Rejected(error_message(&json, status.as_u16())));
+            return Err(classify_failure(status.as_u16(), &json));
         }
         serde_json::from_value(json).map_err(|e| AuthError::Invalid(e.to_string()))
     }
@@ -257,5 +301,74 @@ mod tests {
             error_message(&serde_json::Value::Null, 502),
             "errore HTTP 502"
         );
+        let edge = serde_json::json!({"error": {"code": "bad_refresh_token", "message": "Token di rinnovo non valido"}});
+        assert_eq!(error_message(&edge, 401), "Token di rinnovo non valido");
+    }
+
+    #[test]
+    fn only_a_dead_refresh_token_is_fatal() {
+        let j = |v: serde_json::Value| v;
+        // server trouble: transient
+        assert!(matches!(
+            classify_failure(
+                502,
+                &j(serde_json::json!({"error": {"code": "github_oauth_error", "message": "x"}}))
+            ),
+            AuthError::Network(_)
+        ));
+        assert!(matches!(
+            classify_failure(503, &serde_json::Value::Null),
+            AuthError::Network(_)
+        ));
+        assert!(matches!(
+            classify_failure(429, &serde_json::Value::Null),
+            AuthError::Network(_)
+        ));
+        // dead refresh tokens (Edge Function and Supabase Auth shapes)
+        assert!(matches!(
+            classify_failure(
+                401,
+                &j(serde_json::json!({"error": {"code": "bad_refresh_token", "message": "x"}}))
+            ),
+            AuthError::RefreshTokenInvalid(_)
+        ));
+        assert!(matches!(
+            classify_failure(
+                400,
+                &j(
+                    serde_json::json!({"code": 400, "error_code": "refresh_token_already_used", "msg": "Invalid Refresh Token: Already Used"})
+                )
+            ),
+            AuthError::RefreshTokenInvalid(_)
+        ));
+        assert!(matches!(
+            classify_failure(
+                400,
+                &j(
+                    serde_json::json!({"error": "invalid_grant", "error_description": "Invalid Refresh Token: Refresh Token Not Found"})
+                )
+            ),
+            AuthError::RefreshTokenInvalid(_)
+        ));
+        // an expired session JWT on the Edge Function is not a dead GitHub token
+        assert!(matches!(
+            classify_failure(
+                401,
+                &j(
+                    serde_json::json!({"error": {"code": "unauthenticated", "message": "Sessione non valida o scaduta"}})
+                )
+            ),
+            AuthError::Rejected(_)
+        ));
+        // a bad authorization code at sign-in
+        assert!(matches!(
+            classify_failure(
+                400,
+                &j(
+                    serde_json::json!({"error": "invalid_grant", "error_description": "Codice scaduto"})
+                )
+            ),
+            AuthError::Rejected(_)
+        ));
     }
 }

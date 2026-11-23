@@ -48,22 +48,7 @@ impl ProjectInner {
     pub(crate) fn background_sync(&self) {
         let before = self.origin().ok().flatten();
         match self.fetch_remote() {
-            Ok(()) => {
-                // GitHub answered: a previous "access refused" is over.
-                let auth_ok = self.rt(|r| {
-                    let was = r
-                        .last_error
-                        .as_ref()
-                        .is_some_and(|e| e.code == crate::error::ErrorCode::AuthFailed);
-                    if was {
-                        r.last_error = None;
-                    }
-                    was
-                });
-                if auth_ok {
-                    self.mark_dirty();
-                }
-            }
+            Ok(()) => {}
             Err(e) if e.is_network() => {
                 self.mark_dirty();
                 return;
@@ -84,9 +69,15 @@ impl ProjectInner {
             .unwrap_or(false);
         let open_conflict = self.has_open_conflict().unwrap_or(false);
         if !open_conflict && (before != after || incoming || pending) {
+            // run_op clears the error state when it succeeds.
             let _ = self.run_op("sync", Busy::Updating, json!({"background": true}), |op| {
                 self.sync_after_fetch(op)
             });
+        } else if self.rt(|r| r.last_error.take().is_some()) {
+            // GitHub answered and there is nothing left to integrate or publish: whatever failed
+            // before (access refused, a transient git error...) is over. Without this the
+            // "Errore" state would stay until the next publication or update.
+            tracing::info!(project = %self.id, "error state cleared after a successful fetch");
         }
         let _ = self.retry_conflict_branches();
         self.mark_dirty();

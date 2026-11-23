@@ -151,37 +151,80 @@ const REALTIME_TABLES: Record<string, RealtimeTable> = {
   notifications: 'notifications',
 };
 
+/** Ask the shell for a renewed session when the access token has less than this left. */
+const TOKEN_RENEW_MARGIN_MS = 2 * 60 * 1000;
+
+/** The user id (`sub` claim) of a Supabase access token, without verifying it (the server does). */
+export function jwtSubject(token: string): string | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '='));
+    const sub = (JSON.parse(json) as { sub?: unknown }).sub;
+    return typeof sub === 'string' && sub ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Supabase implementation, built on the schema in docs/modello-dati.md. */
 export class SupabaseData implements DataService {
   readonly kind = 'supabase' as const;
   private readonly sb: SupabaseClient;
   private userId: string | null = null;
 
-  constructor(config: SupabaseConfig, backend: Backend) {
-    // In the desktop app the session lives in Credential Manager (secure_store_*), not localStorage.
-    const storage =
-      backend.kind === 'tauri'
-        ? {
-            getItem: (key: string) => backend.secureStoreGet(key),
-            setItem: (key: string, value: string) => backend.secureStoreSet(key, value),
-            removeItem: (key: string) => backend.secureStoreDelete(key),
-          }
-        : undefined;
-    this.sb = createClient(config.url, config.anonKey, {
-      auth: {
-        storage,
-        storageKey: 'rocketsync-auth',
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: false,
-      },
-    });
+  /**
+   * Desktop app: the shell owns the Supabase session (it renews it and keeps it in Credential
+   * Manager). supabase-js only borrows the access token through `accessToken`, so it never
+   * refreshes - and never rotates - the refresh token the shell is using.
+   */
+  private readonly shellOwnsSession: boolean;
+  private session: { accessToken: string; expiresAt: number } | null = null;
+  private renewing: Promise<void> | null = null;
+
+  constructor(
+    config: SupabaseConfig,
+    private readonly backend: Backend,
+  ) {
+    this.shellOwnsSession = backend.kind === 'tauri';
+    if (this.shellOwnsSession) {
+      // Versions up to 0.1.4 kept a second copy of the session here: drop it.
+      void Promise.resolve()
+        .then(() => backend.secureStoreDelete('rocketsync-auth'))
+        .catch(() => undefined);
+      this.sb = createClient(config.url, config.anonKey, { accessToken: () => this.accessToken() });
+    } else {
+      this.sb = createClient(config.url, config.anonKey, {
+        auth: { storageKey: 'rocketsync-auth', persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      });
+    }
+  }
+
+  /** Access token for supabase-js, asking the shell for a renewed session when it is about to expire. */
+  private async accessToken(): Promise<string | null> {
+    if (!this.session) return null;
+    if (this.session.expiresAt * 1000 - Date.now() < TOKEN_RENEW_MARGIN_MS) {
+      // The shell renews a session that expires within 5 minutes; concurrent callers share one call.
+      this.renewing ??= this.backend
+        .authStatus()
+        .then((st) => this.useSession(st.supabaseSession))
+        .catch(() => undefined)
+        .finally(() => {
+          this.renewing = null;
+        });
+      await this.renewing;
+    }
+    return this.session?.accessToken ?? null;
+  }
+
+  private useSession(s: SessionTokens | null): void {
+    this.session = s ? { accessToken: s.accessToken, expiresAt: s.expiresAt } : null;
+    this.userId = s ? jwtSubject(s.accessToken) : null;
   }
 
   private async uid(): Promise<string> {
     if (this.userId) return this.userId;
-    const { data } = await this.sb.auth.getSession();
-    const id = data.session?.user.id;
+    const id = this.shellOwnsSession ? null : (await this.sb.auth.getSession()).data.session?.user.id;
     if (!id) throw failure('Devi accedere con GitHub per continuare.', undefined, 'authRequired');
     this.userId = id;
     return id;
@@ -213,6 +256,12 @@ export class SupabaseData implements DataService {
   }
 
   async setSession(session: SessionTokens | null): Promise<void> {
+    if (this.shellOwnsSession) {
+      this.useSession(session);
+      // Realtime reads the token on connect and on every heartbeat; give it the new one now.
+      await this.sb.realtime.setAuth(session?.accessToken ?? null).catch(() => undefined);
+      return;
+    }
     if (!session) {
       await this.sb.auth.signOut();
       this.userId = null;
